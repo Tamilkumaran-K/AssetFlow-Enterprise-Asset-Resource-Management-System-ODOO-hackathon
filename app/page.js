@@ -30,6 +30,7 @@ import {
   MAINTENANCE_TREND, KPIS,
 } from '@/lib/mock-data'
 import { STATUS_META, KANBAN_COLS, PRIORITY_META } from '@/lib/asset-utils'
+import { supabase } from '@/lib/supabase'
 
 /* ---------------- primitives ---------------- */
 
@@ -777,8 +778,56 @@ function Dashboard({ onQuick, onNavigate, user }) {
   const hour = new Date().getHours()
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'
 
-  const primaryKpis = KPIS.slice(0, 4)
-  const secondaryKpis = KPIS.slice(4)
+  const [stats, setStats] = useState({
+    available: 0,
+    allocated: 0,
+    maintenance: 0,
+    upcomingReturns: 0,
+    transfers: 0,
+    bookings: 0
+  })
+  const [overdueAssets, setOverdueAssets] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    async function load() {
+      const p1 = supabase.from('assets').select('*', { count: 'exact', head: true }).eq('status', 'Available')
+      const p2 = supabase.from('assets').select('*', { count: 'exact', head: true }).eq('status', 'Allocated')
+      const p3 = supabase.from('maintenance_requests').select('*', { count: 'exact', head: true }).neq('status', 'Resolved').neq('status', 'Rejected')
+      const p4 = supabase.from('bookings').select('*', { count: 'exact', head: true }).in('status', ['Upcoming', 'Ongoing'])
+      const p5 = supabase.from('transfer_requests').select('*', { count: 'exact', head: true }).eq('status', 'Pending')
+      
+      const today = new Date().toISOString()
+      const p6 = supabase.from('allocations').select('*', { count: 'exact', head: true }).eq('status', 'Active').gte('expected_return_date', today)
+      const p7 = supabase.from('allocations').select('id, expected_return_date, profiles(full_name), assets(tag)').eq('status', 'Active').lt('expected_return_date', today)
+
+      const [r1, r2, r3, r4, r5, r6, r7] = await Promise.all([p1, p2, p3, p4, p5, p6, p7])
+      
+      setStats({
+        available: r1.count || 0,
+        allocated: r2.count || 0,
+        maintenance: r3.count || 0,
+        bookings: r4.count || 0,
+        transfers: r5.count || 0,
+        upcomingReturns: r6.count || 0,
+      })
+      setOverdueAssets(r7.data || [])
+      setLoading(false)
+    }
+    load()
+  }, [])
+
+  const primaryKpis = [
+    { key: 'available', label: 'Available', value: stats.available, delta: '+8%', tone: 'emerald', icon: 'check-circle-2' },
+    { key: 'allocated', label: 'Allocated', value: stats.allocated, delta: '+2', tone: 'neutral', icon: 'users' },
+    { key: 'maintenance', label: 'Maintenance', value: stats.maintenance, delta: '−1', tone: 'amber', icon: 'wrench' },
+    { key: 'returns', label: 'Upcoming Returns', value: stats.upcomingReturns, delta: '+3', tone: 'indigo', icon: 'undo-2' },
+  ]
+  
+  const secondaryKpis = [
+    { key: 'transfers', label: 'Pending Transfers', value: stats.transfers, delta: '=', tone: 'amber', icon: 'arrow-left-right' },
+    { key: 'bookings', label: 'Active Bookings', value: stats.bookings, delta: '+4', tone: 'indigo', icon: 'calendar-check' },
+  ]
 
   const allActions = [
     { key: 'register', label: 'Register Asset', desc: 'Add a new asset to the inventory', icon: Plus, tint: 'from-sky-500 to-blue-500', adminOnly: true },
@@ -819,20 +868,24 @@ function Dashboard({ onQuick, onNavigate, user }) {
       </Reveal>
 
       {/* Alert banner */}
-      <Reveal delay={0.05}>
-        <div className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-4 flex items-start gap-3">
-          <div className="w-9 h-9 rounded-xl bg-rose-500/15 text-rose-500 flex items-center justify-center shrink-0">
-            <AlertTriangle className="w-4 h-4" />
+      {overdueAssets.length > 0 && (
+        <Reveal delay={0.05}>
+          <div className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-4 flex items-start gap-3">
+            <div className="w-9 h-9 rounded-xl bg-rose-500/15 text-rose-500 flex items-center justify-center shrink-0">
+              <AlertTriangle className="w-4 h-4" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-semibold">{overdueAssets.length} assets overdue for return — flagged for follow-up.</div>
+              <div className="text-xs text-muted-foreground mt-0.5">
+                {overdueAssets.map(a => `${a.assets?.tag} (${a.profiles?.full_name})`).join(', ')}
+              </div>
+            </div>
+            <Button variant="outline" size="sm" className="h-8 border-rose-500/30 text-rose-600 dark:text-rose-400 hover:bg-rose-500/10" onClick={() => onNavigate('logs')}>
+              Review <ChevronRight className="w-3.5 h-3.5 ml-1" />
+            </Button>
           </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-sm font-semibold">3 assets overdue for return — flagged for follow-up.</div>
-            <div className="text-xs text-muted-foreground mt-0.5">AF-0089 (Sneha Kapoor), AF-0210 (Arjun Mehta), AF-0032 (Rahul Iyer)</div>
-          </div>
-          <Button variant="outline" size="sm" className="h-8 border-rose-500/30 text-rose-600 dark:text-rose-400 hover:bg-rose-500/10" onClick={() => onNavigate('logs')}>
-            Review <ChevronRight className="w-3.5 h-3.5 ml-1" />
-          </Button>
-        </div>
-      </Reveal>
+        </Reveal>
+      )}
 
       {/* Primary KPIs (big) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
