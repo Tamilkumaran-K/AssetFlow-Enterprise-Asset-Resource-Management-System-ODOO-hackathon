@@ -35,7 +35,13 @@ import { supabase } from '@/lib/supabase'
 /* ---------------- primitives ---------------- */
 
 function StatusChip({ status }) {
-  const meta = STATUS_META[status] ?? STATUS_META.available
+  const norm = (status || '').toLowerCase()
+  let key = 'available'
+  if (norm === 'allocated') key = 'allocated'
+  else if (norm.includes('maintenance')) key = 'maintenance'
+  else if (norm === 'retired' || norm === 'missing') key = 'missing'
+  
+  const meta = STATUS_META[key] ?? STATUS_META.available
   return (
     <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border ${meta.className}`}>
       <span className="w-1.5 h-1.5 rounded-full bg-current" />
@@ -707,7 +713,7 @@ function Sidebar({ active, onSelect, role, onClose }) {
   )
 }
 
-function TopBar({ role, theme, setTheme, onSearchOpen, onMenu, activeLabel, user, onLogout }) {
+function TopBar({ role, theme, setTheme, onSearchOpen, onMenu, activeLabel, user, onLogout, onNotificationsOpen }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const initials = user?.name?.split(' ').map((x) => x[0]).slice(0, 2).join('') || 'PS'
   const roleLabel = role === 'admin' ? 'Administrator' : 'Employee'
@@ -734,7 +740,7 @@ function TopBar({ role, theme, setTheme, onSearchOpen, onMenu, activeLabel, user
         <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="w-9 h-9 rounded-lg border border-border bg-background hover:bg-muted flex items-center justify-center">
           {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
         </button>
-        <button className="w-9 h-9 rounded-lg border border-border bg-background hover:bg-muted flex items-center justify-center relative">
+        <button onClick={onNotificationsOpen} className="w-9 h-9 rounded-lg border border-border bg-background hover:bg-muted flex items-center justify-center relative">
           <Bell className="w-4 h-4" />
           <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-rose-500" />
         </button>
@@ -1327,8 +1333,8 @@ function AllocateDialog({ asset, profiles = [], onClose, onAllocate, onRaiseTran
   }, [asset, profiles])
 
   if (!asset) return null
-  const isConflict = asset.status === 'allocated'
-  const isMaintenance = asset.status === 'maintenance'
+  const isConflict = asset.status === 'Allocated'
+  const isMaintenance = asset.status === 'In Maintenance'
 
   return (
     <Dialog open={!!asset} onOpenChange={(o) => !o && onClose()}>
@@ -1954,15 +1960,82 @@ function ReportsScreen() {
 
 /* ---------------- Logs ---------------- */
 
+function timeAgo(dateStr) {
+  if (!dateStr) return 'Unknown time'
+  const diff = Date.now() - new Date(dateStr).getTime()
+  const m = Math.floor(diff / 60000)
+  if (m < 1) return 'Just now'
+  if (m < 60) return `${m} min ago`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h} hr ago`
+  const d = Math.floor(h / 24)
+  if (d === 1) return 'Yesterday'
+  if (d < 30) return `${d} days ago`
+  return new Date(dateStr).toLocaleDateString()
+}
+
 function LogsScreen() {
   const [filter, setFilter] = useState('all')
-  const filtered = ACTIVITY.filter((a) => {
+  const [activities, setActivities] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    async function fetchLogs() {
+      setLoading(true)
+      const [allocRes, transferRes, bookingRes] = await Promise.all([
+        supabase.from('allocations').select('created_at, asset:assets(asset_tag, name), employee:profiles!allocations_assigned_to_employee_id_fkey(name)').order('created_at', { ascending: false }).limit(20),
+        supabase.from('transfer_requests').select('created_at, status, asset:assets(asset_tag, name), from_emp:profiles!transfer_requests_from_employee_id_fkey(name), to_emp:profiles!transfer_requests_to_employee_id_fkey(name)').eq('status', 'Approved').order('created_at', { ascending: false }).limit(20),
+        supabase.from('bookings').select('created_at, start_time, end_time, asset:assets(asset_tag, name), user:profiles(name)').in('status', ['Upcoming', 'Ongoing']).order('created_at', { ascending: false }).limit(20)
+      ])
+
+      let merged = []
+      
+      if (allocRes.data) {
+        merged.push(...allocRes.data.map(a => ({
+          id: `alloc-${a.created_at}-${Math.random()}`,
+          type: 'allocation',
+          text: `Asset ${a.asset?.asset_tag} (${a.asset?.name}) allocated to ${a.employee?.name || 'Department'}`,
+          time: timeAgo(a.created_at),
+          ts: new Date(a.created_at).getTime(),
+          icon: 'user-plus'
+        })))
+      }
+      if (transferRes.data) {
+        merged.push(...transferRes.data.map(t => ({
+          id: `tx-${t.created_at}-${Math.random()}`,
+          type: 'transfer',
+          text: `Transfer approved: ${t.asset?.asset_tag} from ${t.from_emp?.name} to ${t.to_emp?.name}`,
+          time: timeAgo(t.created_at),
+          ts: new Date(t.created_at).getTime(),
+          icon: 'arrow-left-right'
+        })))
+      }
+      if (bookingRes.data) {
+        merged.push(...bookingRes.data.map(b => ({
+          id: `bk-${b.created_at}-${Math.random()}`,
+          type: 'booking',
+          text: `Resource ${b.asset?.asset_tag} booked by ${b.user?.name}`,
+          time: timeAgo(b.created_at),
+          ts: new Date(b.created_at).getTime(),
+          icon: 'calendar'
+        })))
+      }
+      
+      merged.sort((a, b) => b.ts - a.ts)
+      setActivities(merged)
+      setLoading(false)
+    }
+    fetchLogs()
+  }, [])
+
+  const filtered = activities.filter((a) => {
     if (filter === 'all') return true
     if (filter === 'alerts') return a.type === 'alert'
     if (filter === 'approvals') return a.type === 'transfer'
     if (filter === 'bookings') return a.type === 'booking'
     return true
   })
+
   const tabs = [{ key: 'all', label: 'All' }, { key: 'alerts', label: 'Alerts' }, { key: 'approvals', label: 'Approvals' }, { key: 'bookings', label: 'Bookings' }]
   return (
     <div className="p-6 lg:p-8 space-y-6 max-w-[1000px] mx-auto">
@@ -1977,7 +2050,10 @@ function LogsScreen() {
           </button>
         ))}
       </div>
-      <Card className="rounded-2xl border-border p-5 bg-card">
+      <Card className="rounded-2xl border-border p-5 bg-card min-h-[400px]">
+        {loading ? (
+           <div className="text-sm text-muted-foreground py-8 text-center">Loading activity...</div>
+        ) : (
         <div className="space-y-1">
           {filtered.map((a, i) => {
             const Icon = ICON_MAP[a.icon] ?? Sparkles
@@ -1996,6 +2072,7 @@ function LogsScreen() {
           })}
           {filtered.length === 0 && <div className="text-sm text-muted-foreground py-8 text-center">No activity matches.</div>}
         </div>
+        )}
       </Card>
     </div>
   )
@@ -2939,6 +3016,7 @@ function App() {
             activeLabel={activeLabel}
             user={currentUser}
             onLogout={handleLogout}
+            onNotificationsOpen={() => setActive('logs')}
           />
           <main className="flex-1 overflow-x-hidden">
             <AnimatePresence mode="wait">
