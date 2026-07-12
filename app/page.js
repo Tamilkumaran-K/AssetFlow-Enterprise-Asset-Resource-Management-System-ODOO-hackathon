@@ -1499,7 +1499,6 @@ function AllocationsScreen({ assets, onOpenAllocate, transfers, onApproveTransfe
 
 /* ---------------- Bookings calendar ---------------- */
 
-const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
 const TIMES = Array.from({ length: 19 }, (_, i) => 9 + i * 0.5)
 
 const formatTime = (t) => {
@@ -1513,14 +1512,36 @@ function BookingsScreen({ bookings, onBook, assets }) {
   const defaultAssetTag = bookableAssets.length > 0 ? bookableAssets[0].tag : ''
   const [assetTag, setAssetTag] = useState(defaultAssetTag)
   const [showForm, setShowForm] = useState(false)
-  const [dayIdx, setDayIdx] = useState(1) // 1 = Mon ... 5 = Fri
+  const [dayOffset, setDayOffset] = useState(0) // 0 = today, 1 = tomorrow ...
   const [startH, setStartH] = useState(11)
   const [endH, setEndH] = useState(12)
   const [title, setTitle] = useState('')
 
+  const currentDays = useMemo(() => {
+    const days = []
+    const now = new Date()
+    for (let i = 0; i < 5; i++) {
+      const d = new Date(now)
+      d.setDate(now.getDate() + i)
+      days.push(d)
+    }
+    return days
+  }, [])
+
   const dayBookings = bookings.filter((b) => b.assetTag === assetTag)
   const activeDayBookings = dayBookings.filter(b => b.status !== 'Cancelled')
-  const hasOverlap = () => activeDayBookings.some((b) => b.day === dayIdx && !(endH <= b.start || startH >= b.end))
+  
+  const hasOverlap = () => {
+    const targetDate = currentDays[dayOffset]
+    return activeDayBookings.some((b) => {
+      if (!b.startDate) return false
+      const bDate = new Date(b.startDate)
+      return bDate.getFullYear() === targetDate.getFullYear() &&
+             bDate.getMonth() === targetDate.getMonth() &&
+             bDate.getDate() === targetDate.getDate() &&
+             !(endH <= b.start || startH >= b.end)
+    })
+  }
 
   const submit = () => {
     if (hasOverlap()) { toast.error('Time slot overlaps with an existing booking.'); return }
@@ -1529,17 +1550,12 @@ function BookingsScreen({ bookings, onBook, assets }) {
     const selectedAsset = bookableAssets.find(a => a.tag === assetTag)
     if (!selectedAsset) { toast.error('Asset not found.'); return }
 
-    // Calculate real Dates for the current week's chosen day
-    const now = new Date()
-    const currentDayOfWeek = now.getDay() === 0 ? 7 : now.getDay() // 1 = Mon, 7 = Sun
-    const diffToTargetDay = dayIdx - currentDayOfWeek
+    const targetDate = currentDays[dayOffset]
     
-    const start_time = new Date(now)
-    start_time.setDate(now.getDate() + diffToTargetDay)
+    const start_time = new Date(targetDate)
     start_time.setHours(Math.floor(startH), (startH % 1) * 60, 0, 0)
     
-    const end_time = new Date(now)
-    end_time.setDate(now.getDate() + diffToTargetDay)
+    const end_time = new Date(targetDate)
     end_time.setHours(Math.floor(endH), (endH % 1) * 60, 0, 0)
 
     onBook(selectedAsset.id, start_time, end_time, title)
@@ -1574,19 +1590,25 @@ function BookingsScreen({ bookings, onBook, assets }) {
         <div className="min-w-[720px]">
           <div className="grid" style={{ gridTemplateColumns: '60px repeat(5, 1fr)' }}>
             <div />
-            {DAYS.map((d, i) => (
-              <div key={d} className="text-center text-xs font-semibold py-2 border-b border-border">
-                <div className="text-muted-foreground uppercase tracking-wide">{d}</div>
-                <div className="text-lg font-bold mt-1">{9 + i}</div>
+            {currentDays.map((d, i) => (
+              <div key={i} className="text-center text-xs font-semibold py-2 border-b border-border">
+                <div className="text-muted-foreground uppercase tracking-wide">{d.toLocaleDateString('en-US', { weekday: 'short' })}</div>
+                <div className="text-lg font-bold mt-1">{d.getDate()} {d.toLocaleDateString('en-US', { month: 'short' })}</div>
               </div>
             ))}
           </div>
           {TIMES.map((t) => (
             <div key={t} className="grid" style={{ gridTemplateColumns: '60px repeat(5, 1fr)' }}>
               <div className="text-[11px] text-muted-foreground py-3 pr-2 text-right tabular-nums border-t border-border/50">{formatTime(t)}</div>
-              {DAYS.map((_, dIdx) => {
-                const dayNum = dIdx + 1
-                const booking = dayBookings.find((b) => b.day === dayNum && t >= b.start && t < b.end)
+              {currentDays.map((d, dIdx) => {
+                const booking = dayBookings.find((b) => {
+                  if (!b.startDate) return false
+                  const bDate = new Date(b.startDate)
+                  return bDate.getFullYear() === d.getFullYear() &&
+                         bDate.getMonth() === d.getMonth() &&
+                         bDate.getDate() === d.getDate() &&
+                         t >= b.start && t < b.end
+                })
                 const isStart = booking && booking.start === t
                 return (
                   <div key={dIdx} className="border-t border-l border-border/50 h-14 relative">
@@ -1641,9 +1663,15 @@ function BookingsScreen({ bookings, onBook, assets }) {
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <label className="text-sm font-medium mb-1.5 block">Day</label>
-                <Select value={String(dayIdx)} onValueChange={(v) => setDayIdx(Number(v))}>
+                <Select value={String(dayOffset)} onValueChange={(v) => setDayOffset(Number(v))}>
                   <SelectTrigger className="h-10 rounded-lg"><SelectValue /></SelectTrigger>
-                  <SelectContent>{DAYS.map((d, i) => <SelectItem key={d} value={String(i + 1)}>{d}</SelectItem>)}</SelectContent>
+                  <SelectContent>
+                    {currentDays.map((d, i) => (
+                      <SelectItem key={i} value={String(i)}>
+                        {d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
                 </Select>
               </div>
               <div>
@@ -2244,6 +2272,7 @@ function RegisterAssetDialog({ open, onClose, onAdd, categories = [] }) {
   const [condition, setCondition] = useState('New')
   const [photoUrl, setPhotoUrl] = useState('')
   const [isBookable, setIsBookable] = useState(false)
+  const [status, setStatus] = useState('Available')
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -2266,11 +2295,11 @@ function RegisterAssetDialog({ open, onClose, onAdd, categories = [] }) {
       condition,
       photo_url: photoUrl || null,
       is_shared_bookable: isBookable,
-      status: 'Available'
+      status: status
     })
     setLoading(false)
     if (success) {
-      setName(''); setCategoryId('none'); setSerial(''); setLocation(''); setAcqDate(''); setAcqCost(''); setPhotoUrl(''); setIsBookable(false); setCondition('New');
+      setName(''); setCategoryId('none'); setSerial(''); setLocation(''); setAcqDate(''); setAcqCost(''); setPhotoUrl(''); setIsBookable(false); setCondition('New'); setStatus('Available');
     }
   }
 
@@ -2318,7 +2347,21 @@ function RegisterAssetDialog({ open, onClose, onAdd, categories = [] }) {
             </div>
             <div><label className="text-sm font-medium mb-1.5 block">Location</label><Input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g. HQ - IT Store" className="h-10 rounded-lg" /></div>
           </div>
-          <div><label className="text-sm font-medium mb-1.5 block">Photo URL (Optional)</label><Input type="url" value={photoUrl} onChange={(e) => setPhotoUrl(e.target.value)} placeholder="https://..." className="h-10 rounded-lg" /></div>
+          <div className="grid grid-cols-2 gap-4">
+            <div><label className="text-sm font-medium mb-1.5 block">Photo URL (Optional)</label><Input type="url" value={photoUrl} onChange={(e) => setPhotoUrl(e.target.value)} placeholder="https://..." className="h-10 rounded-lg" /></div>
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Status</label>
+              <Select value={status} onValueChange={setStatus}>
+                <SelectTrigger className="h-10 rounded-lg"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Available">Available</SelectItem>
+                  <SelectItem value="Allocated">Allocated</SelectItem>
+                  <SelectItem value="In Maintenance">In Maintenance</SelectItem>
+                  <SelectItem value="Retired">Retired</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
           
           <label className="flex items-center gap-3 p-3 rounded-lg border border-border bg-muted/20 cursor-pointer">
             <input type="checkbox" checked={isBookable} onChange={(e) => setIsBookable(e.target.checked)} className="w-4 h-4 rounded border-border" />
@@ -2686,18 +2729,18 @@ function App() {
     const mappedBookings = (bookingsRes.data || []).map(b => {
       const startD = new Date(b.start_time)
       const endD = new Date(b.end_time)
-      const day = startD.getDay() === 0 ? 7 : startD.getDay() // 1 = Mon ... 7 = Sun
       const startH = startD.getHours() + (startD.getMinutes() / 60)
       const endH = endD.getHours() + (endD.getMinutes() / 60)
       return {
         id: b.id,
         assetTag: b.asset?.asset_tag,
         assetName: b.asset?.name,
-        day: day,
+        startDate: startD,
         start: startH,
         end: endH,
         user: b.profile?.name || 'Unknown',
-        title: 'Booking' // Fallback title
+        title: 'Booking',
+        status: b.status
       }
     })
     setBookings(mappedBookings)
@@ -2716,7 +2759,7 @@ function App() {
         dept: activeAlloc ? activeAlloc.employee?.department?.name : null,
         since: activeAlloc ? activeAlloc.allocation_date : null,
         expectedReturnDate: activeAlloc ? activeAlloc.expected_return_date : null,
-        status: activeAlloc ? 'Allocated' : (a.status === 'Allocated' ? 'Available' : a.status)
+        status: activeAlloc ? 'Allocated' : a.status
       }
     })
     setAssets(mappedAssets)
@@ -2745,7 +2788,6 @@ function App() {
     
     const startD = new Date(data.start_time)
     const endD = new Date(data.end_time)
-    const day = startD.getDay() === 0 ? 7 : startD.getDay()
     const startH = startD.getHours() + (startD.getMinutes() / 60)
     const endH = endD.getHours() + (endD.getMinutes() / 60)
     
@@ -2753,11 +2795,12 @@ function App() {
       id: data.id,
       assetTag: data.asset?.asset_tag,
       assetName: data.asset?.name,
-      day: day,
+      startDate: startD,
       start: startH,
       end: endH,
       user: data.profile?.name,
-      title: title || 'Booking'
+      title: title || 'Booking',
+      status: data.status
     }
     setBookings(prev => [...prev, newBooking])
     toast.success('Booking confirmed')
