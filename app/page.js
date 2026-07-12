@@ -799,28 +799,58 @@ function Dashboard({ onQuick, onNavigate, user }) {
 
   useEffect(() => {
     async function load() {
-      const p1 = supabase.from('assets').select('*', { count: 'exact', head: true }).eq('status', 'Available')
-      const p2 = supabase.from('assets').select('*', { count: 'exact', head: true }).eq('status', 'Allocated')
-      const p3 = supabase.from('maintenance_requests').select('*', { count: 'exact', head: true }).neq('status', 'Resolved').neq('status', 'Rejected')
-      const p4 = supabase.from('bookings').select('*', { count: 'exact', head: true }).in('status', ['Upcoming', 'Ongoing'])
-      const p5 = supabase.from('transfer_requests').select('*', { count: 'exact', head: true }).eq('status', 'Pending')
-      
-      const today = new Date().toISOString()
-      const p6 = supabase.from('allocations').select('*', { count: 'exact', head: true }).eq('status', 'Active').gte('expected_return_date', today)
-      const p7 = supabase.from('allocations').select('id, expected_return_date, profiles(full_name), assets(tag)').eq('status', 'Active').lt('expected_return_date', today)
+      try {
+        const isPlaceholder = !process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('your-supabase-project') || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY.includes('your-supabase')
+        if (isPlaceholder) {
+          throw new Error('Supabase using placeholder credentials')
+        }
 
-      const [r1, r2, r3, r4, r5, r6, r7] = await Promise.all([p1, p2, p3, p4, p5, p6, p7])
-      
-      setStats({
-        available: r1.count || 0,
-        allocated: r2.count || 0,
-        maintenance: r3.count || 0,
-        bookings: r4.count || 0,
-        transfers: r5.count || 0,
-        upcomingReturns: r6.count || 0,
-      })
-      setOverdueAssets(r7.data || [])
-      setLoading(false)
+        const p1 = supabase.from('assets').select('*', { count: 'exact', head: true }).eq('status', 'Available')
+        const p2 = supabase.from('assets').select('*', { count: 'exact', head: true }).eq('status', 'Allocated')
+        const p3 = supabase.from('maintenance_requests').select('*', { count: 'exact', head: true }).neq('status', 'Resolved').neq('status', 'Rejected')
+        const p4 = supabase.from('bookings').select('*', { count: 'exact', head: true }).in('status', ['Upcoming', 'Ongoing'])
+        const p5 = supabase.from('transfer_requests').select('*', { count: 'exact', head: true }).eq('status', 'Pending')
+        
+        const today = new Date().toISOString()
+        const p6 = supabase.from('allocations').select('*', { count: 'exact', head: true }).eq('status', 'Active').gte('expected_return_date', today)
+        const p7 = supabase.from('allocations').select('id, expected_return_date, profiles(full_name), assets(tag)').eq('status', 'Active').lt('expected_return_date', today)
+
+        const [r1, r2, r3, r4, r5, r6, r7] = await Promise.all([p1, p2, p3, p4, p5, p6, p7])
+        
+        if (r1.error || r2.error || r3.error || r4.error || r5.error || r6.error || r7.error) {
+          throw new Error('Supabase query error')
+        }
+
+        setStats({
+          available: r1.count || 0,
+          allocated: r2.count || 0,
+          maintenance: r3.count || 0,
+          bookings: r4.count || 0,
+          transfers: r5.count || 0,
+          upcomingReturns: r6.count || 0,
+        })
+        setOverdueAssets(r7.data || [])
+      } catch (err) {
+        console.warn('Dashboard falling back to local mock data:', err.message)
+        
+        // Compute from local seed data
+        const availCount = SEED_ASSETS.filter(a => a.status?.toLowerCase() === 'available').length
+        const allocCount = SEED_ASSETS.filter(a => a.status?.toLowerCase() === 'allocated').length
+        const maintCount = SEED_MAINTENANCE.filter(m => m.status?.toLowerCase() !== 'resolved' && m.status?.toLowerCase() !== 'rejected').length
+        const bookCount = SEED_BOOKINGS.length
+        
+        setStats({
+          available: availCount,
+          allocated: allocCount,
+          maintenance: maintCount,
+          bookings: bookCount,
+          transfers: 0,
+          upcomingReturns: 3,
+        })
+        setOverdueAssets([])
+      } finally {
+        setLoading(false)
+      }
     }
     load()
   }, [])
@@ -1102,13 +1132,25 @@ function AssetDetailsDialog({ asset, open, onClose, onOpenAllocate, isAdmin }) {
     if (!asset || !open) return
     const fetchHistory = async () => {
       setLoading(true)
-      const [allocs, maints] = await Promise.all([
-        supabase.from('allocations').select('*, profiles!allocations_assigned_to_employee_id_fkey(name)').eq('asset_id', asset.id).order('allocation_date', { ascending: false }),
-        supabase.from('maintenance_requests').select('*').eq('asset_id', asset.id).order('created_at', { ascending: false })
-      ])
-      setAllocHistory(allocs.data || [])
-      setMaintHistory(maints.data || [])
-      setLoading(false)
+      try {
+        const isPlaceholder = !process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('your-supabase-project') || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY.includes('your-supabase')
+        if (isPlaceholder) {
+          throw new Error('Placeholder credentials')
+        }
+        const [allocs, maints] = await Promise.all([
+          supabase.from('allocations').select('*, profiles!allocations_assigned_to_employee_id_fkey(name)').eq('asset_id', asset.id).order('allocation_date', { ascending: false }),
+          supabase.from('maintenance_requests').select('*').eq('asset_id', asset.id).order('created_at', { ascending: false })
+        ])
+        if (allocs.error || maints.error) throw new Error('Query failed')
+        setAllocHistory(allocs.data || [])
+        setMaintHistory(maints.data || [])
+      } catch (err) {
+        console.warn('AssetDetailsDialog history query failed, falling back:', err.message)
+        setAllocHistory([])
+        setMaintHistory([])
+      } finally {
+        setLoading(false)
+      }
     }
     fetchHistory()
   }, [asset, open])
@@ -3066,15 +3108,44 @@ function OrgScreen({ onDataChanged }) {
 
   const loadData = async () => {
     setLoading(true)
-    const [deptRes, profRes, catRes] = await Promise.all([
-      supabase.from('departments').select('*, head:profiles!head_id(id, name), profiles!profiles_department_id_fkey(count)').order('name'),
-      supabase.from('profiles').select('*, department:departments!profiles_department_id_fkey(name)').eq('status', 'Active').order('name'),
-      supabase.from('asset_categories').select('*').order('name')
-    ])
-    setDepartments(deptRes.data || [])
-    setProfiles(profRes.data || [])
-    setCategories(catRes.data || [])
-    setLoading(false)
+    try {
+      const isPlaceholder = !process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('your-supabase-project') || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY.includes('your-supabase')
+      if (isPlaceholder) {
+        throw new Error('Supabase using placeholder credentials')
+      }
+
+      const [deptRes, profRes, catRes] = await Promise.all([
+        supabase.from('departments').select('*, head:profiles!head_id(id, name), profiles!profiles_department_id_fkey(count)').order('name'),
+        supabase.from('profiles').select('*, department:departments!profiles_department_id_fkey(name)').eq('status', 'Active').order('name'),
+        supabase.from('asset_categories').select('*').order('name')
+      ])
+
+      if (deptRes.error || profRes.error || catRes.error) {
+        throw new Error('Supabase query error')
+      }
+
+      setDepartments(deptRes.data || [])
+      setProfiles(profRes.data || [])
+      setCategories(catRes.data || [])
+    } catch (err) {
+      console.warn('OrgScreen falling back to local mock data:', err.message)
+      
+      setDepartments(DEPARTMENTS || [])
+      
+      const mockProfiles = EMPLOYEES.map(e => ({
+        id: e.id,
+        name: e.name,
+        email: `${e.name.toLowerCase().replace(' ', '')}@assetflow.com`,
+        role: e.role,
+        department: { name: e.dept }
+      }))
+      setProfiles(mockProfiles)
+
+      const mockCategories = CATEGORIES.map((c, idx) => ({ id: `cat-${idx}`, name: c }))
+      setCategories(mockCategories)
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => {
