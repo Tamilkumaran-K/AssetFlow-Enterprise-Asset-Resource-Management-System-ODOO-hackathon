@@ -3961,7 +3961,7 @@ function App() {
       setTransfers([])
 
       // Fallback bookings
-      const mockBookings = BOOKINGS.map(b => {
+      const mockBookings = SEED_BOOKINGS.map(b => {
         const startD = new Date()
         return {
           id: b.id,
