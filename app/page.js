@@ -653,9 +653,9 @@ function AuthScreen({ onLogin, defaultMode = 'login' }) {
 /* ---------------- Sidebar & Topbar ---------------- */
 
 const NAV_ITEMS = [
-  { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'employee'] },
-  { key: 'assets', label: 'Assets', icon: Package, roles: ['admin', 'employee'] },
-  { key: 'allocations', label: 'Allocation & Transfer', icon: ArrowLeftRight, roles: ['admin', 'employee'] },
+  { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin'] },
+  { key: 'assets', label: 'Assets', icon: Package, roles: ['admin'] },
+  { key: 'allocations', label: 'Allocation & Transfer', icon: ArrowLeftRight, roles: ['admin'] },
   { key: 'bookings', label: 'Resource Booking', icon: CalendarDays, roles: ['admin', 'employee'] },
   { key: 'maintenance', label: 'Maintenance', icon: Wrench, roles: ['admin', 'employee'] },
   { key: 'audit', label: 'Audit', icon: ClipboardCheck, roles: ['admin'] },
@@ -2895,10 +2895,13 @@ function App() {
     return true
   }
 
-  // Safety: if the active screen isn't allowed for the current role, bounce to dashboard
+  // Safety: if the active screen isn't allowed for the current role, bounce to first allowed
   useEffect(() => {
     const allowed = NAV_ITEMS.find((n) => n.key === active)?.roles?.includes(role)
-    if (view === 'app' && !allowed) setActive('dashboard')
+    if (view === 'app' && !allowed) {
+      const firstAllowed = NAV_ITEMS.find((n) => n.roles?.includes(role))?.key || 'dashboard'
+      setActive(firstAllowed)
+    }
   }, [active, role, view])
 
   const doAllocate = async (asset, profileId, expectedReturnDate) => {
@@ -2979,7 +2982,8 @@ function App() {
   const handleLogin = (user) => {
     setCurrentUser(user)
     setRole(user.role)
-    setActive('dashboard')
+    const firstAllowed = NAV_ITEMS.find((n) => n.roles?.includes(user.role))?.key || 'dashboard'
+    setActive(firstAllowed)
     setView('app')
   }
 
