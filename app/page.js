@@ -2598,7 +2598,8 @@ function App() {
         category: a.category?.name || 'Unknown',
         allocatedTo: activeAlloc ? activeAlloc.employee?.name : null,
         dept: activeAlloc ? activeAlloc.employee?.department?.name : null,
-        since: activeAlloc ? activeAlloc.allocation_date : null
+        since: activeAlloc ? activeAlloc.allocation_date : null,
+        status: activeAlloc ? 'Allocated' : (a.status === 'Allocated' ? 'Available' : a.status)
       }
     })
     setAssets(mappedAssets)
