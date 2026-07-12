@@ -9,7 +9,7 @@ import {
   CalendarCheck, UserPlus, Calendar, ArrowRight, Filter, MapPin, Clock, User,
   Layers, ChevronDown, Boxes, Sparkles, TrendingUp, ShieldCheck, Zap,
   Star, Play, Check, Quote, ArrowUpRight, Twitter, Linkedin, Github,
-  Bot, Radar, LineChart as LineIcon, LogOut,
+  Bot, Radar, LineChart as LineIcon, LogOut, Trash2, Pencil,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -1910,14 +1910,17 @@ function OrgScreen({ onDataChanged }) {
   const [categories, setCategories] = useState([])
   const [loading, setLoading] = useState(true)
   const [addDeptOpen, setAddDeptOpen] = useState(false)
+  const [editDept, setEditDept] = useState(null)
   const [addCatOpen, setAddCatOpen] = useState(false)
+  const [editCat, setEditCat] = useState(null)
   const [inviteOpen, setInviteOpen] = useState(false)
+  const [editEmp, setEditEmp] = useState(null)
 
   const loadData = async () => {
     setLoading(true)
     const [deptRes, profRes, catRes] = await Promise.all([
       supabase.from('departments').select('*, head:profiles!head_id(id, name), profiles!profiles_department_id_fkey(count)').order('name'),
-      supabase.from('profiles').select('*, department:departments!profiles_department_id_fkey(name)').order('name'),
+      supabase.from('profiles').select('*, department:departments!profiles_department_id_fkey(name)').eq('status', 'Active').order('name'),
       supabase.from('asset_categories').select('*').order('name')
     ])
     setDepartments(deptRes.data || [])
@@ -1931,42 +1934,69 @@ function OrgScreen({ onDataChanged }) {
   }, [])
 
   const handleAddDept = async (deptData) => {
-    const { data, error } = await supabase.from('departments').insert([deptData]).select()
-    if (error) {
-      toast.error('Failed to create department: ' + error.message)
-      return false
+    if (editDept) {
+      const { error } = await supabase.from('departments').update(deptData).eq('id', editDept.id)
+      if (error) { toast.error('Failed to update: ' + error.message); return false }
+      toast.success('Department updated')
+    } else {
+      const { error } = await supabase.from('departments').insert([deptData])
+      if (error) { toast.error('Failed to create: ' + error.message); return false }
+      toast.success('Department created')
     }
-    toast.success('Department created')
     loadData()
     if (onDataChanged) onDataChanged()
     setAddDeptOpen(false)
     return true
   }
 
-  const handleAddCat = async (catData) => {
-    const { data, error } = await supabase.from('asset_categories').insert([catData]).select()
-    if (error) {
-      toast.error('Failed to create category: ' + error.message)
-      return false
+  const handleSaveCat = async (catData) => {
+    if (editCat) {
+      const { error } = await supabase.from('asset_categories').update(catData).eq('id', editCat.id)
+      if (error) { toast.error('Failed to update category: ' + error.message); return false }
+      toast.success('Category updated')
+    } else {
+      const { error } = await supabase.from('asset_categories').insert([catData])
+      if (error) { toast.error('Failed to create category: ' + error.message); return false }
+      toast.success('Category created')
     }
-    toast.success('Category created')
     loadData()
     if (onDataChanged) onDataChanged()
     setAddCatOpen(false)
     return true
   }
 
-  const handleInvite = async (empData) => {
-    const { data, error } = await supabase.from('profiles').insert([empData]).select()
-    if (error) {
-      toast.error('Failed to invite employee: ' + error.message)
-      return false
+  const handleDeleteCat = async (id) => {
+    if (!window.confirm('Are you sure you want to remove this category?')) return
+    const { error } = await supabase.from('asset_categories').delete().eq('id', id)
+    if (error) { toast.error('Failed to remove: ' + error.message); return }
+    toast.success('Category removed')
+    loadData()
+    if (onDataChanged) onDataChanged()
+  }
+
+  const handleSaveEmp = async (empData) => {
+    if (editEmp) {
+      const { error } = await supabase.from('profiles').update(empData).eq('id', editEmp.id)
+      if (error) { toast.error('Failed to update employee: ' + error.message); return false }
+      toast.success('Employee updated')
+    } else {
+      const { error } = await supabase.from('profiles').insert([empData])
+      if (error) { toast.error('Failed to add employee: ' + error.message); return false }
+      toast.success('Employee added')
     }
-    toast.success('Employee invited')
     loadData()
     if (onDataChanged) onDataChanged()
     setInviteOpen(false)
     return true
+  }
+
+  const handleDeleteEmp = async (id) => {
+    if (!window.confirm('Are you sure you want to deactivate and remove this employee?')) return
+    const { error } = await supabase.from('profiles').update({ status: 'Inactive' }).eq('id', id)
+    if (error) { toast.error('Failed to remove: ' + error.message); return }
+    toast.success('Employee removed')
+    loadData()
+    if (onDataChanged) onDataChanged()
   }
 
   const getInitials = (name) => {
@@ -1991,7 +2021,7 @@ function OrgScreen({ onDataChanged }) {
           <Card className="rounded-2xl border-border p-5 bg-card">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold">Hierarchy</h3>
-              <Button size="sm" className="bg-sky-500 hover:bg-sky-600 text-white rounded-lg" onClick={() => setAddDeptOpen(true)}>
+              <Button size="sm" className="bg-sky-500 hover:bg-sky-600 text-white rounded-lg" onClick={() => { setEditDept(null); setAddDeptOpen(true) }}>
                 <Plus className="w-3.5 h-3.5 mr-1" /> Add Dept
               </Button>
             </div>
@@ -2004,34 +2034,51 @@ function OrgScreen({ onDataChanged }) {
                     <div className="text-xs text-muted-foreground">Head: {d.head?.name || 'Unassigned'}</div>
                   </div>
                   <Badge variant="outline" className="border-border">{d.profiles?.[0]?.count || 0} members</Badge>
+                  <Button variant="ghost" size="icon" onClick={() => { setEditDept(d); setAddDeptOpen(true) }} className="text-sky-500 hover:text-sky-600 hover:bg-sky-500/10 h-8 w-8 ml-2">
+                    <Pencil className="w-4 h-4" />
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={() => handleDeleteDept(d.id)} className="text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 h-8 w-8 ml-2">
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
                 </div>
               ))}
               {departments.length === 0 && !loading && <div className="text-sm text-muted-foreground p-4 text-center">No departments yet.</div>}
             </div>
           </Card>
           
-          <AddDepartmentDialog 
+          <DepartmentDialog 
             open={addDeptOpen} 
             onClose={() => setAddDeptOpen(false)} 
-            onAdd={handleAddDept}
+            onSave={handleAddDept}
             profiles={profiles}
             departments={departments}
+            dept={editDept}
           />
         </TabsContent>
         <TabsContent value="categories" className="mt-4">
           <Card className="rounded-2xl border-border p-5 bg-card">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold">Asset Categories & Custom Fields</h3>
-              <Button size="sm" className="bg-sky-500 hover:bg-sky-600 text-white rounded-lg" onClick={() => setAddCatOpen(true)}>
+              <Button size="sm" className="bg-sky-500 hover:bg-sky-600 text-white rounded-lg" onClick={() => { setEditCat(null); setAddCatOpen(true) }}>
                 <Plus className="w-3.5 h-3.5 mr-1" /> New Category
               </Button>
             </div>
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {loading ? <div className="text-sm text-muted-foreground p-4 text-center col-span-full">Loading categories...</div> : categories.map((c) => (
                 <div key={c.id} className="rounded-xl border border-border p-4 hover:bg-muted/30 transition-colors">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="w-8 h-8 rounded-lg bg-sky-500/10 text-sky-500 flex items-center justify-center"><Layers className="w-3.5 h-3.5" /></div>
-                    <div className="font-medium">{c.name}</div>
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-lg bg-sky-500/10 text-sky-500 flex items-center justify-center"><Layers className="w-3.5 h-3.5" /></div>
+                      <div className="font-medium">{c.name}</div>
+                    </div>
+                    <div className="flex">
+                      <Button variant="ghost" size="icon" onClick={() => { setEditCat(c); setAddCatOpen(true) }} className="text-sky-500 hover:text-sky-600 hover:bg-sky-500/10 h-6 w-6">
+                        <Pencil className="w-3 h-3" />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => handleDeleteCat(c.id)} className="text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 h-6 w-6">
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    </div>
                   </div>
                   <div className="text-xs text-muted-foreground">
                     {c.metadata_schema?.fields?.length ? `Custom fields: ${c.metadata_schema.fields.join(', ')}` : 'No custom fields defined'}
@@ -2042,18 +2089,19 @@ function OrgScreen({ onDataChanged }) {
             </div>
           </Card>
           
-          <AddCategoryDialog 
+          <CategoryDialog 
             open={addCatOpen} 
             onClose={() => setAddCatOpen(false)} 
-            onAdd={handleAddCat}
+            onSave={handleSaveCat}
+            cat={editCat}
           />
         </TabsContent>
         <TabsContent value="employees" className="mt-4">
           <Card className="rounded-2xl border-border p-5 bg-card">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold">Employee Directory</h3>
-              <Button size="sm" className="bg-sky-500 hover:bg-sky-600 text-white rounded-lg" onClick={() => setInviteOpen(true)}>
-                <Plus className="w-3.5 h-3.5 mr-1" /> Invite
+              <Button size="sm" className="bg-sky-500 hover:bg-sky-600 text-white rounded-lg" onClick={() => { setEditEmp(null); setInviteOpen(true) }}>
+                <Plus className="w-3.5 h-3.5 mr-1" /> Add Employee
               </Button>
             </div>
             <div className="space-y-2">
@@ -2066,26 +2114,25 @@ function OrgScreen({ onDataChanged }) {
                     <div className="text-sm font-medium">{e.name}</div>
                     <div className="text-xs text-muted-foreground">{e.department?.name || 'Unassigned'}</div>
                   </div>
-                  <Select defaultValue={e.role}>
-                    <SelectTrigger className="w-36 h-8 rounded-md text-xs"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Admin">Admin</SelectItem>
-                      <SelectItem value="Asset Manager">Asset Manager</SelectItem>
-                      <SelectItem value="Department Head">Department Head</SelectItem>
-                      <SelectItem value="Employee">Employee</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Badge variant="secondary" className="font-normal">{e.role}</Badge>
+                  <Button variant="ghost" size="icon" onClick={() => { setEditEmp(e); setInviteOpen(true) }} className="text-sky-500 hover:text-sky-600 hover:bg-sky-500/10 h-8 w-8 ml-2">
+                    <Pencil className="w-4 h-4" />
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={() => handleDeleteEmp(e.id)} className="text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 h-8 w-8 ml-1">
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
                 </div>
               ))}
               {profiles.length === 0 && !loading && <div className="text-sm text-muted-foreground p-4 text-center">No employees yet.</div>}
             </div>
           </Card>
           
-          <InviteEmployeeDialog 
+          <EmployeeDialog 
             open={inviteOpen} 
             onClose={() => setInviteOpen(false)} 
-            onInvite={handleInvite}
+            onSave={handleSaveEmp}
             departments={departments}
+            emp={editEmp}
           />
         </TabsContent>
       </Tabs>
@@ -2201,17 +2248,33 @@ function RegisterAssetDialog({ open, onClose, onAdd, categories = [] }) {
   )
 }
 
-function InviteEmployeeDialog({ open, onClose, onInvite, departments }) {
+function EmployeeDialog({ open, onClose, onSave, departments, emp }) {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [role, setRole] = useState('Employee')
   const [departmentId, setDepartmentId] = useState('none')
   const [loading, setLoading] = useState(false)
 
+  useEffect(() => {
+    if (open) {
+      if (emp) {
+        setName(emp.name || '')
+        setEmail(emp.email || '')
+        setRole(emp.role || 'Employee')
+        setDepartmentId(emp.department_id || 'none')
+      } else {
+        setName('')
+        setEmail('')
+        setRole('Employee')
+        setDepartmentId('none')
+      }
+    }
+  }, [open, emp])
+
   const handleSubmit = async () => {
     if (!name.trim() || !email.trim()) return
     setLoading(true)
-    const success = await onInvite({ 
+    const success = await onSave({ 
       name, 
       email, 
       role, 
@@ -2231,8 +2294,8 @@ function InviteEmployeeDialog({ open, onClose, onInvite, departments }) {
     <Dialog open={open} onOpenChange={(val) => !val && onClose()}>
       <DialogContent className="sm:max-w-[425px] rounded-2xl p-0 overflow-hidden border-border bg-card">
         <div className="p-6 pb-4 border-b border-border bg-muted/20">
-          <DialogTitle className="text-xl font-bold tracking-tight">Invite Employee</DialogTitle>
-          <p className="text-sm text-muted-foreground mt-1">Add a new employee to the directory.</p>
+          <DialogTitle className="text-xl font-bold tracking-tight">{emp ? 'Edit Employee' : 'Add Employee'}</DialogTitle>
+          <p className="text-sm text-muted-foreground mt-1">{emp ? 'Update employee details and role.' : 'Add a new employee to the directory.'}</p>
         </div>
         <div className="p-6 space-y-4">
           <div>
@@ -2271,7 +2334,7 @@ function InviteEmployeeDialog({ open, onClose, onInvite, departments }) {
         <div className="p-6 pt-4 border-t border-border bg-muted/20 flex justify-end gap-2">
           <Button variant="outline" className="rounded-xl h-10" onClick={onClose} disabled={loading}>Cancel</Button>
           <Button className="bg-sky-500 hover:bg-sky-600 text-white rounded-xl h-10" onClick={handleSubmit} disabled={!name.trim() || !email.trim() || loading}>
-            {loading ? 'Inviting...' : 'Send Invite'}
+            {loading ? 'Saving...' : emp ? 'Save Changes' : 'Add Employee'}
           </Button>
         </div>
       </DialogContent>
@@ -2279,16 +2342,28 @@ function InviteEmployeeDialog({ open, onClose, onInvite, departments }) {
   )
 }
 
-function AddCategoryDialog({ open, onClose, onAdd }) {
+function CategoryDialog({ open, onClose, onSave, cat }) {
   const [name, setName] = useState('')
   const [customFields, setCustomFields] = useState('')
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (open) {
+      if (cat) {
+        setName(cat.name)
+        setCustomFields(cat.metadata_schema?.fields?.join(', ') || '')
+      } else {
+        setName('')
+        setCustomFields('')
+      }
+    }
+  }, [open, cat])
 
   const handleSubmit = async () => {
     if (!name.trim()) return
     setLoading(true)
     const schema = customFields ? { fields: customFields.split(',').map(f => f.trim()).filter(Boolean) } : null
-    const success = await onAdd({ name, metadata_schema: schema })
+    const success = await onSave({ name, metadata_schema: schema })
     setLoading(false)
     if (success) {
       setName('')
@@ -2300,8 +2375,8 @@ function AddCategoryDialog({ open, onClose, onAdd }) {
     <Dialog open={open} onOpenChange={(val) => !val && onClose()}>
       <DialogContent className="sm:max-w-[425px] rounded-2xl p-0 overflow-hidden border-border bg-card">
         <div className="p-6 pb-4 border-b border-border bg-muted/20">
-          <DialogTitle className="text-xl font-bold tracking-tight">New Asset Category</DialogTitle>
-          <p className="text-sm text-muted-foreground mt-1">Define a new category and its specific attributes.</p>
+          <DialogTitle className="text-xl font-bold tracking-tight">{cat ? 'Edit Asset Category' : 'New Asset Category'}</DialogTitle>
+          <p className="text-sm text-muted-foreground mt-1">{cat ? 'Update category details and attributes.' : 'Define a new category and its specific attributes.'}</p>
         </div>
         <div className="p-6 space-y-5">
           <div>
@@ -2317,7 +2392,7 @@ function AddCategoryDialog({ open, onClose, onAdd }) {
         <div className="p-6 pt-4 border-t border-border bg-muted/20 flex justify-end gap-2">
           <Button variant="outline" className="rounded-xl h-10" onClick={onClose} disabled={loading}>Cancel</Button>
           <Button className="bg-sky-500 hover:bg-sky-600 text-white rounded-xl h-10" onClick={handleSubmit} disabled={!name.trim() || loading}>
-            {loading ? 'Creating...' : 'Create Category'}
+            {loading ? 'Saving...' : cat ? 'Save Changes' : 'Create Category'}
           </Button>
         </div>
       </DialogContent>
@@ -2375,7 +2450,7 @@ function RaiseMaintenanceDialog({ open, onClose, assets, onRaise }) {
 
 /* ---------------- App root ---------------- */
 
-function AddDepartmentDialog({ open, onClose, onAdd, profiles, departments }) {
+function DepartmentDialog({ open, onClose, onSave, profiles, departments, dept }) {
   const [name, setName] = useState('')
   const [headId, setHeadId] = useState('none')
   const [parentId, setParentId] = useState('none')
@@ -2383,13 +2458,20 @@ function AddDepartmentDialog({ open, onClose, onAdd, profiles, departments }) {
 
   useEffect(() => {
     if (open) {
-      setName(''); setHeadId('none'); setParentId('none'); setStatus('Active')
+      if (dept) {
+        setName(dept.name)
+        setHeadId(dept.head?.id || dept.head_id || 'none')
+        setParentId(dept.parent_department_id || 'none')
+        setStatus(dept.status)
+      } else {
+        setName(''); setHeadId('none'); setParentId('none'); setStatus('Active')
+      }
     }
-  }, [open])
+  }, [open, dept])
 
   const submit = async () => {
     if (!name.trim()) { toast.error('Name is required'); return }
-    await onAdd({
+    await onSave({
       name,
       head_id: headId === 'none' ? null : headId,
       parent_department_id: parentId === 'none' ? null : parentId,
@@ -2401,8 +2483,8 @@ function AddDepartmentDialog({ open, onClose, onAdd, profiles, departments }) {
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-md rounded-2xl">
         <DialogHeader>
-          <DialogTitle>Add Department</DialogTitle>
-          <DialogDescription>Create a new department in the organization.</DialogDescription>
+          <DialogTitle>{dept ? 'Edit Department' : 'Add Department'}</DialogTitle>
+          <DialogDescription>{dept ? 'Update the department details.' : 'Create a new department in the organization.'}</DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <div><label className="text-sm font-medium mb-1.5 block">Name</label><Input value={name} onChange={(e) => setName(e.target.value)} placeholder='Engineering' className="h-10 rounded-lg" /></div>
@@ -2439,7 +2521,7 @@ function AddDepartmentDialog({ open, onClose, onAdd, profiles, departments }) {
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose} className="rounded-lg">Cancel</Button>
-          <Button onClick={submit} className="bg-sky-500 hover:bg-sky-600 text-white rounded-lg">Create</Button>
+          <Button onClick={submit} className="bg-sky-500 hover:bg-sky-600 text-white rounded-lg">{dept ? 'Save Changes' : 'Create'}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -2473,7 +2555,7 @@ function App() {
       supabase.from('assets').select('*, category:asset_categories(name)').order('created_at', { ascending: false }),
       supabase.from('asset_categories').select('*').order('name'),
       supabase.from('allocations').select('*, employee:profiles!allocations_assigned_to_employee_id_fkey(name, department:departments!profiles_department_id_fkey(name))').eq('status', 'Active'),
-      supabase.from('profiles').select('*, department:departments!profiles_department_id_fkey(name)').order('name'),
+      supabase.from('profiles').select('*, department:departments!profiles_department_id_fkey(name)').eq('status', 'Active').order('name'),
       supabase.from('maintenance_requests').select('*, asset:assets(name, asset_tag), profile:profiles(name)').order('created_at', { ascending: false })
     ])
     
