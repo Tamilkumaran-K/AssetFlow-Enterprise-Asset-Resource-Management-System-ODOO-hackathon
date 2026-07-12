@@ -8,6 +8,8 @@ import {
   ChevronRight, ChevronLeft, AlertTriangle, CheckCircle2, Users, Undo2,
   CalendarCheck, UserPlus, Calendar, ArrowRight, Filter, MapPin, Clock, User,
   Layers, ChevronDown, Boxes, Sparkles, TrendingUp, ShieldCheck, Zap,
+  Star, Play, Check, Quote, ArrowUpRight, Twitter, Linkedin, Github,
+  Bot, Radar, LineChart as LineIcon, LogOut,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -78,7 +80,7 @@ function Reveal({ children, delay = 0, className = '' }) {
 const TONE_STYLES = {
   emerald: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
   amber: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
-  indigo: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400',
+  indigo: 'bg-sky-500/10 text-sky-600 dark:text-sky-400',
   neutral: 'bg-slate-500/10 text-slate-600 dark:text-slate-400',
   rose: 'bg-rose-500/10 text-rose-600 dark:text-rose-400',
 }
@@ -96,97 +98,548 @@ const ICON_MAP = {
   'clipboard-check': ClipboardCheck,
 }
 
-/* ---------------- Login ---------------- */
+/* ---------------- Landing Page ---------------- */
 
-function LoginScreen({ onLogin }) {
-  const [mode, setMode] = useState('login')
-  const [slide, setSlide] = useState(0)
-  const slides = [
-    { title: 'Conflict-free allocation', body: 'Prevent double-assignment with real-time ownership checks and instant transfer requests.', icon: ShieldCheck },
-    { title: 'Smart maintenance', body: 'Kanban workflows keep technicians, approvers and requesters on the same page.', icon: Wrench },
-    { title: 'Insightful analytics', body: 'Utilization, idle-asset radar and audit trails — in one operational hub.', icon: Sparkles },
-  ]
+function HomePage({ onGoAuth }) {
+  const [scrolled, setScrolled] = useState(false)
   useEffect(() => {
-    const t = setInterval(() => setSlide((s) => (s + 1) % slides.length), 3800)
-    return () => clearInterval(t)
-  }, [slides.length])
+    const onScroll = () => setScrolled(window.scrollY > 40)
+    window.addEventListener('scroll', onScroll)
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
+  const FEATURES = [
+    { icon: Package, title: 'Lifecycle Tracking', body: 'Every asset from procurement to retirement — with rich metadata and QR-ready tags.' },
+    { icon: ShieldCheck, title: 'Conflict-Free Allocation', body: 'Real-time ownership checks prevent double-assignment. Transfer flows keep everyone aligned.' },
+    { icon: CalendarDays, title: 'Smart Resource Booking', body: 'Meeting rooms, projectors and vehicles — overlap detection blocks conflicts on the fly.' },
+    { icon: Wrench, title: 'Maintenance Workflows', body: 'Kanban tickets flow from Pending to Resolved, keeping technicians and approvers in sync.' },
+    { icon: ClipboardCheck, title: 'Audit Cycles', body: 'Physical verification wizards auto-generate discrepancy reports for every quarter.' },
+    { icon: BarChart3, title: 'Real-Time Analytics', body: 'Utilization dashboards, maintenance trends and idle-asset radar — all in one hub.' },
+    { icon: Users, title: 'Role-Based Access', body: 'Admins, managers and employees see exactly what they need. Nothing more, nothing less.' },
+    { icon: Bell, title: 'Smart Notifications', body: 'Overdue returns, approval nudges and audit alerts — delivered where your team already is.' },
+  ]
+
+  const STEPS = [
+    { n: '01', title: 'Setup', body: 'Admins configure departments, asset categories and custom fields in minutes.', icon: Building2 },
+    { n: '02', title: 'Manage', body: 'Managers register assets, handle allocations and approve maintenance tickets.', icon: Layers },
+    { n: '03', title: 'Optimize', body: 'Employees book resources and raise requests; leadership acts on live analytics.', icon: TrendingUp },
+  ]
+
+  const TESTIMONIALS = [
+    { name: 'Priya Shah', role: 'IT Manager · Nexora', quote: 'AssetFlow paid for itself in two months. Zero more double-booked rooms, zero missing laptops.', initials: 'PS', tint: 'from-sky-400 to-teal-400' },
+    { name: 'Rahul Iyer', role: 'Head of Engineering · Vantage', quote: 'The kanban maintenance board turned our chaotic email threads into a single source of truth.', initials: 'RI', tint: 'from-teal-400 to-emerald-400' },
+    { name: 'Ananya Patel', role: 'Design Lead · Loop Studio', quote: 'Finally, an ERP that designers can actually enjoy. The dashboards are gorgeous and fast.', initials: 'AP', tint: 'from-amber-400 to-rose-400' },
+    { name: 'Vikram Singh', role: 'Marketing · Flair Media', quote: 'Booking a vehicle used to be a Slack marathon. Now it takes 15 seconds and it just works.', initials: 'VS', tint: 'from-sky-400 to-indigo-400' },
+  ]
 
   return (
-    <div className="min-h-screen grid lg:grid-cols-2 bg-background">
-      <div className="flex items-center justify-center p-8">
-        <div className="w-full max-w-md">
-          <div className="flex items-center gap-2 mb-10">
-            <div className="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-600/30">
+    <div className="min-h-screen bg-[#F8F8F8] text-slate-900">
+      {/* Sticky nav */}
+      <motion.header
+        initial={{ y: -30, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: 0.5 }}
+        className={`fixed top-0 inset-x-0 z-40 transition-all duration-300 ${scrolled ? 'bg-white/80 backdrop-blur-xl border-b border-slate-200 shadow-sm' : 'bg-transparent'}`}
+      >
+        <div className="max-w-7xl mx-auto flex items-center justify-between px-6 lg:px-10 h-16">
+          <div className="flex items-center gap-2">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-sky-500 to-teal-500 flex items-center justify-center shadow-lg shadow-sky-500/25">
               <Boxes className="w-5 h-5 text-white" />
             </div>
-            <span className="text-xl font-bold tracking-tight">AssetFlow</span>
+            <span className="text-lg font-bold tracking-tight">AssetFlow</span>
           </div>
-          <h1 className="text-3xl font-bold tracking-tight mb-2">
-            {mode === 'login' ? 'Welcome back' : 'Create your account'}
-          </h1>
-          <p className="text-muted-foreground mb-8">
-            {mode === 'login' ? 'Sign in to manage your organization’s assets.' : 'Sign up to join your workspace.'}
-          </p>
-          <form onSubmit={(e) => { e.preventDefault(); onLogin() }} className="space-y-4">
-            {mode === 'signup' && (
-              <div>
-                <label className="text-sm font-medium mb-1.5 block">Full name</label>
-                <Input placeholder="Priya Shah" defaultValue="Priya Shah" className="h-11 rounded-xl" />
-              </div>
-            )}
-            <div>
-              <label className="text-sm font-medium mb-1.5 block">Work email</label>
-              <Input type="email" placeholder="you@company.com" defaultValue="priya@assetflow.io" className="h-11 rounded-xl" />
-            </div>
-            <div>
-              <label className="text-sm font-medium mb-1.5 block">Password</label>
-              <Input type="password" placeholder="••••••••" defaultValue="demopass" className="h-11 rounded-xl" />
-            </div>
-            {mode === 'signup' && (
-              <div className="text-xs text-muted-foreground bg-muted/50 border rounded-xl p-3 flex gap-2">
-                <ShieldCheck className="w-4 h-4 text-indigo-500 shrink-0 mt-0.5" />
-                <span>Creates an employee account only; roles are assigned by your admin after approval.</span>
-              </div>
-            )}
-            <Button type="submit" className="w-full h-11 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold active:scale-[0.98] transition-transform">
-              {mode === 'login' ? 'Sign in' : 'Create account'}
+          <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-600">
+            <a href="#features" className="hover:text-slate-900 transition-colors">Features</a>
+            <a href="#workflow" className="hover:text-slate-900 transition-colors">How it works</a>
+            <a href="#testimonials" className="hover:text-slate-900 transition-colors">Customers</a>
+            <a href="#cta" className="hover:text-slate-900 transition-colors">Pricing</a>
+          </nav>
+          <div className="flex items-center gap-2">
+            <button onClick={() => onGoAuth('login')} className="hidden sm:inline text-sm font-medium text-slate-700 hover:text-slate-900 px-3 py-2">Sign in</button>
+            <Button onClick={() => onGoAuth('signup')} className="h-9 rounded-lg bg-gradient-to-r from-sky-500 to-teal-500 hover:from-sky-600 hover:to-teal-600 text-white font-semibold shadow-md shadow-sky-500/25 active:scale-[0.98] transition-transform">
+              Get started <ArrowRight className="w-3.5 h-3.5 ml-1" />
             </Button>
-          </form>
-          <div className="mt-6 text-sm text-muted-foreground text-center">
-            {mode === 'login' ? 'New to AssetFlow?' : 'Have an account?'}{' '}
-            <button className="text-indigo-500 hover:text-indigo-400 font-medium" onClick={() => setMode(mode === 'login' ? 'signup' : 'login')}>
-              {mode === 'login' ? 'Create an account' : 'Sign in'}
-            </button>
           </div>
         </div>
+      </motion.header>
+
+      {/* Hero */}
+      <section className="relative pt-32 lg:pt-40 pb-20 px-6 lg:px-10 overflow-hidden">
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute top-20 -left-40 w-[600px] h-[600px] rounded-full bg-sky-400/20 blur-3xl" />
+          <div className="absolute top-40 right-0 w-[500px] h-[500px] rounded-full bg-teal-400/20 blur-3xl" />
+          <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, #1A1A1A 1px, transparent 0)', backgroundSize: '32px 32px' }} />
+        </div>
+        <div className="relative max-w-6xl mx-auto text-center">
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-slate-200 shadow-sm text-xs font-medium text-slate-700 mb-8">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              New: AI-powered idle asset recommendations
+              <ChevronRight className="w-3 h-3 text-slate-400" />
+            </div>
+          </motion.div>
+          <motion.h1
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.1 }}
+            className="text-5xl md:text-7xl font-bold tracking-tight leading-[1.02] mb-6"
+          >
+            Simplify your enterprise.<br />
+            <span className="bg-gradient-to-r from-sky-500 via-teal-500 to-emerald-500 bg-clip-text text-transparent">Master your assets.</span>
+          </motion.h1>
+          <motion.p
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.2 }}
+            className="text-lg md:text-xl text-slate-600 max-w-2xl mx-auto mb-9 leading-relaxed"
+          >
+            Centralized ERP for seamless asset tracking, allocation, booking and maintenance — built for teams that ship, not spreadsheets.
+          </motion.p>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.3 }}
+            className="flex flex-col sm:flex-row gap-3 justify-center mb-14"
+          >
+            <Button onClick={() => onGoAuth('signup')} className="h-12 px-6 rounded-xl bg-gradient-to-r from-sky-500 to-teal-500 hover:from-sky-600 hover:to-teal-600 text-white font-semibold shadow-xl shadow-sky-500/30 active:scale-[0.98] transition-all">
+              Get Started Free <ArrowRight className="w-4 h-4 ml-1.5" />
+            </Button>
+            <Button variant="outline" className="h-12 px-6 rounded-xl border-slate-300 bg-white hover:bg-slate-50 font-semibold text-slate-800 shadow-sm active:scale-[0.98] transition-transform">
+              <Play className="w-4 h-4 mr-1.5 fill-slate-800" /> Watch Demo
+            </Button>
+          </motion.div>
+
+          <div className="flex items-center justify-center gap-6 text-xs text-slate-500 mb-14">
+            <div className="flex items-center gap-1"><Check className="w-3.5 h-3.5 text-emerald-500" /> No credit card required</div>
+            <div className="flex items-center gap-1"><Check className="w-3.5 h-3.5 text-emerald-500" /> 14-day free trial</div>
+            <div className="hidden sm:flex items-center gap-1"><Check className="w-3.5 h-3.5 text-emerald-500" /> Cancel anytime</div>
+          </div>
+
+          {/* Mockup */}
+          <motion.div
+            initial={{ opacity: 0, y: 40 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, delay: 0.4 }}
+            className="relative max-w-5xl mx-auto"
+          >
+            <div className="absolute -inset-4 bg-gradient-to-r from-sky-500/20 to-teal-500/20 rounded-3xl blur-2xl" />
+            <div className="relative rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/10 overflow-hidden">
+              <div className="border-b border-slate-100 px-4 py-3 flex items-center gap-2 bg-slate-50/50">
+                <div className="flex gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-rose-400" />
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
+                </div>
+                <div className="mx-auto text-[11px] text-slate-500 font-mono">app.assetflow.io / dashboard</div>
+              </div>
+              <div className="p-5 lg:p-7 text-left">
+                <div className="flex items-center justify-between mb-5">
+                  <div>
+                    <div className="text-xs text-slate-500">Operational Snapshot</div>
+                    <div className="text-lg font-bold">Good morning, Priya</div>
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="h-8 px-3 rounded-lg bg-gradient-to-r from-sky-500 to-teal-500 text-white text-xs font-semibold flex items-center">+ New Asset</div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-4 gap-3">
+                  {[
+                    { l: 'Available', v: '128', c: 'text-emerald-600', b: 'bg-emerald-50', d: '+8%' },
+                    { l: 'Allocated', v: '76', c: 'text-sky-600', b: 'bg-sky-50', d: '+2' },
+                    { l: 'Maintenance', v: '4', c: 'text-amber-600', b: 'bg-amber-50', d: '-1' },
+                    { l: 'Overdue', v: '3', c: 'text-rose-600', b: 'bg-rose-50', d: 'flag' },
+                  ].map((k) => (
+                    <div key={k.l} className={`rounded-xl ${k.b} border border-slate-100 p-3`}>
+                      <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">{k.l}</div>
+                      <div className={`text-2xl font-bold mt-1 ${k.c}`}>{k.v}</div>
+                      <div className="text-[10px] text-slate-500 mt-1">{k.d}</div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-4 grid grid-cols-3 gap-3">
+                  <div className="col-span-2 rounded-xl border border-slate-100 p-3 bg-slate-50/50">
+                    <div className="flex items-end gap-1.5 h-16">
+                      {[38, 60, 45, 78, 55, 82, 70, 90, 65, 88, 72, 95].map((h, i) => (
+                        <motion.div
+                          key={i}
+                          initial={{ height: 0 }}
+                          animate={{ height: `${h}%` }}
+                          transition={{ delay: 0.6 + i * 0.04, duration: 0.5 }}
+                          className="flex-1 rounded-t bg-gradient-to-t from-sky-500 to-teal-400"
+                        />
+                      ))}
+                    </div>
+                    <div className="text-[10px] text-slate-500 mt-2">Utilization · last 12 weeks</div>
+                  </div>
+                  <div className="rounded-xl border border-slate-100 p-3 bg-slate-50/50 space-y-2">
+                    {['AF-0114 · allocated', 'Room B2 · booked', 'AF-0062 · resolved'].map((t) => (
+                      <div key={t} className="text-[11px] text-slate-600 flex items-center gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-sky-500" /> {t}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* Problem / Solution */}
+      <section className="relative py-24 px-6 lg:px-10 bg-white border-y border-slate-200">
+        <div className="max-w-6xl mx-auto grid lg:grid-cols-2 gap-12 items-center">
+          <Reveal>
+            <div className="text-xs font-bold text-rose-500 uppercase tracking-wider mb-3">The status quo</div>
+            <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-4">Tired of spreadsheets pretending to be an ERP?</h2>
+            <p className="text-slate-600 leading-relaxed mb-6">Paper trails, siloed sheets and Slack threads make asset management a full-time job. Missing laptops. Double-booked rooms. Overdue returns that no one notices until audit day.</p>
+            <ul className="space-y-3">
+              {['4+ hours weekly reconciling ownership disputes', 'Meeting-room chaos across teams and floors', 'Zero visibility into what\'s idle vs actively used'].map((p) => (
+                <li key={p} className="flex items-start gap-2 text-sm text-slate-700">
+                  <div className="w-5 h-5 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center shrink-0 mt-0.5"><X className="w-3 h-3" /></div>
+                  {p}
+                </li>
+              ))}
+            </ul>
+          </Reveal>
+          <Reveal delay={0.1}>
+            <div className="rounded-2xl bg-gradient-to-br from-sky-50 to-teal-50 border border-sky-100 p-8">
+              <div className="text-xs font-bold text-sky-600 uppercase tracking-wider mb-3">With AssetFlow</div>
+              <h3 className="text-2xl font-bold tracking-tight mb-4">A single hub for every asset & workflow.</h3>
+              <div className="space-y-3">
+                {[
+                  { icon: ShieldCheck, text: 'Ownership disputes resolved in seconds, not hours.' },
+                  { icon: CalendarCheck, text: 'Overlap-proof booking for every shared resource.' },
+                  { icon: Radar, text: 'Idle-asset radar surfaces reallocation candidates automatically.' },
+                ].map((s) => (
+                  <div key={s.text} className="flex items-start gap-3 rounded-xl bg-white/70 border border-white p-3 backdrop-blur">
+                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-sky-500 to-teal-500 text-white flex items-center justify-center shrink-0">
+                      <s.icon className="w-4 h-4" />
+                    </div>
+                    <div className="text-sm text-slate-700 pt-1">{s.text}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Reveal>
+        </div>
+      </section>
+
+      {/* Features */}
+      <section id="features" className="py-24 px-6 lg:px-10">
+        <div className="max-w-6xl mx-auto">
+          <Reveal>
+            <div className="text-center mb-14 max-w-2xl mx-auto">
+              <div className="text-xs font-bold text-sky-500 uppercase tracking-wider mb-3">Capabilities</div>
+              <h2 className="text-3xl md:text-5xl font-bold tracking-tight mb-4">Unlock efficiency with AssetFlow's core capabilities</h2>
+              <p className="text-slate-600 text-lg leading-relaxed">Every feature you need to run a modern ops team — none of the bloat.</p>
+            </div>
+          </Reveal>
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {FEATURES.map((f, i) => (
+              <Reveal key={f.title} delay={i * 0.05}>
+                <motion.div
+                  whileHover={{ y: -6 }}
+                  transition={{ duration: 0.2 }}
+                  className="h-full rounded-2xl bg-white border border-slate-200 p-6 hover:border-sky-300 hover:shadow-xl hover:shadow-sky-500/10 transition-all"
+                >
+                  <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-sky-100 to-teal-100 border border-sky-200 flex items-center justify-center mb-4">
+                    <f.icon className="w-5 h-5 text-sky-600" />
+                  </div>
+                  <h3 className="font-bold text-lg mb-1.5">{f.title}</h3>
+                  <p className="text-sm text-slate-600 leading-relaxed">{f.body}</p>
+                </motion.div>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* How it works */}
+      <section id="workflow" className="py-24 px-6 lg:px-10 bg-gradient-to-b from-white to-slate-50 border-y border-slate-200">
+        <div className="max-w-6xl mx-auto">
+          <Reveal>
+            <div className="text-center mb-16 max-w-2xl mx-auto">
+              <div className="text-xs font-bold text-teal-500 uppercase tracking-wider mb-3">How it works</div>
+              <h2 className="text-3xl md:text-5xl font-bold tracking-tight mb-4">Your assets, streamlined. In 3 simple steps.</h2>
+            </div>
+          </Reveal>
+          <div className="grid md:grid-cols-3 gap-6 relative">
+            <div className="hidden md:block absolute top-16 left-[16.66%] right-[16.66%] h-[1px] bg-gradient-to-r from-sky-300 via-teal-300 to-emerald-300" />
+            {STEPS.map((s, i) => (
+              <Reveal key={s.n} delay={i * 0.1}>
+                <div className="relative rounded-2xl bg-white border border-slate-200 p-6 shadow-sm hover:shadow-lg transition-shadow">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-sky-500 to-teal-500 text-white font-bold flex items-center justify-center mb-4 shadow-lg shadow-sky-500/25">
+                    {s.n}
+                  </div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <s.icon className="w-4 h-4 text-sky-500" />
+                    <h3 className="font-bold text-xl">{s.title}</h3>
+                  </div>
+                  <p className="text-sm text-slate-600 leading-relaxed">{s.body}</p>
+                </div>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Testimonials */}
+      <section id="testimonials" className="py-24 px-6 lg:px-10">
+        <div className="max-w-6xl mx-auto">
+          <Reveal>
+            <div className="text-center mb-14 max-w-2xl mx-auto">
+              <div className="text-xs font-bold text-amber-500 uppercase tracking-wider mb-3">Loved by ops teams</div>
+              <h2 className="text-3xl md:text-5xl font-bold tracking-tight mb-4">What our users say</h2>
+              <div className="flex items-center justify-center gap-1 mt-3">
+                {[...Array(5)].map((_, i) => <Star key={i} className="w-5 h-5 fill-amber-400 text-amber-400" />)}
+                <span className="text-sm text-slate-600 ml-2 font-medium">4.9 / 5 across 200+ workspaces</span>
+              </div>
+            </div>
+          </Reveal>
+          <div className="grid md:grid-cols-2 gap-5">
+            {TESTIMONIALS.map((t, i) => (
+              <Reveal key={t.name} delay={i * 0.05}>
+                <motion.div
+                  whileHover={{ y: -4 }}
+                  className="rounded-2xl bg-white border border-slate-200 p-6 hover:shadow-xl hover:shadow-slate-900/5 transition-shadow"
+                >
+                  <Quote className="w-8 h-8 text-sky-200 mb-3" />
+                  <p className="text-slate-700 leading-relaxed mb-5">“{t.quote}”</p>
+                  <div className="flex items-center gap-3">
+                    <div className={`w-11 h-11 rounded-full bg-gradient-to-br ${t.tint} flex items-center justify-center text-white font-bold text-sm shadow-md`}>{t.initials}</div>
+                    <div>
+                      <div className="font-semibold text-sm">{t.name}</div>
+                      <div className="text-xs text-slate-500">{t.role}</div>
+                    </div>
+                  </div>
+                </motion.div>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* CTA */}
+      <section id="cta" className="py-24 px-6 lg:px-10">
+        <div className="max-w-5xl mx-auto">
+          <Reveal>
+            <div className="relative rounded-3xl overflow-hidden p-10 md:p-16 text-center bg-gradient-to-br from-sky-500 via-sky-600 to-teal-500 shadow-2xl shadow-sky-500/30">
+              <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(circle at 20% 20%, white 1px, transparent 1px), radial-gradient(circle at 80% 60%, white 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
+              <div className="relative">
+                <h2 className="text-3xl md:text-5xl font-bold tracking-tight text-white mb-4">Ready to transform your asset management?</h2>
+                <p className="text-white/80 text-lg mb-8 max-w-xl mx-auto">Join 200+ teams using AssetFlow to eliminate spreadsheets, disputes and downtime.</p>
+                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                  <Button onClick={() => onGoAuth('signup')} className="h-12 px-6 rounded-xl bg-white text-sky-600 hover:bg-slate-50 font-semibold shadow-lg active:scale-[0.98] transition-transform">
+                    Start Your Free Trial <ArrowUpRight className="w-4 h-4 ml-1.5" />
+                  </Button>
+                  <Button onClick={() => onGoAuth('login')} variant="outline" className="h-12 px-6 rounded-xl border-white/30 bg-white/10 text-white hover:bg-white/20 font-semibold backdrop-blur">
+                    Sign in
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </Reveal>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="border-t border-slate-200 bg-white">
+        <div className="max-w-6xl mx-auto px-6 lg:px-10 py-14 grid md:grid-cols-4 gap-8">
+          <div>
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-sky-500 to-teal-500 flex items-center justify-center">
+                <Boxes className="w-4 h-4 text-white" />
+              </div>
+              <span className="font-bold tracking-tight">AssetFlow</span>
+            </div>
+            <p className="text-sm text-slate-600 leading-relaxed">The operational hub for teams that ship, not spreadsheets.</p>
+            <div className="flex gap-2 mt-4">
+              {[Twitter, Linkedin, Github].map((I, i) => (
+                <a key={i} href="#" className="w-8 h-8 rounded-lg border border-slate-200 hover:border-sky-300 hover:bg-sky-50 flex items-center justify-center text-slate-500 hover:text-sky-600 transition-colors">
+                  <I className="w-4 h-4" />
+                </a>
+              ))}
+            </div>
+          </div>
+          {[
+            { title: 'Product', links: ['Features', 'Pricing', 'Changelog', 'Roadmap'] },
+            { title: 'Resources', links: ['Blog', 'Help Center', 'API Docs', 'Community'] },
+            { title: 'Legal', links: ['Privacy Policy', 'Terms of Service', 'Security', 'Contact'] },
+          ].map((col) => (
+            <div key={col.title}>
+              <div className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-4">{col.title}</div>
+              <ul className="space-y-2.5">
+                {col.links.map((l) => <li key={l}><a href="#" className="text-sm text-slate-600 hover:text-sky-600 transition-colors">{l}</a></li>)}
+              </ul>
+            </div>
+          ))}
+        </div>
+        <div className="border-t border-slate-200 py-5 px-6 lg:px-10 max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3 text-xs text-slate-500">
+          <div>© 2025 AssetFlow, Inc. All rights reserved.</div>
+          <div className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> All systems operational</div>
+        </div>
+      </footer>
+    </div>
+  )
+}
+
+/* ---------------- Auth (Login / Signup) ---------------- */
+
+const ADMIN_CREDS = { email: 'admin@assetflow.io', password: 'admin123' }
+
+function AuthScreen({ onLogin, onBackHome, defaultMode = 'login' }) {
+  const [mode, setMode] = useState(defaultMode)
+  const [email, setEmail] = useState('admin@assetflow.io')
+  const [password, setPassword] = useState('admin123')
+  const [name, setName] = useState('')
+  const [error, setError] = useState('')
+
+  const submit = (e) => {
+    e.preventDefault()
+    setError('')
+    if (mode === 'login') {
+      if (email.trim().toLowerCase() === ADMIN_CREDS.email && password === ADMIN_CREDS.password) {
+        toast.success('Welcome back, Admin')
+        onLogin({ role: 'admin', name: 'Priya Shah', email })
+      } else if (email && password) {
+        toast.success('Signed in as Employee')
+        onLogin({ role: 'employee', name: email.split('@')[0] || 'Employee', email })
+      } else {
+        setError('Enter your email and password to continue.')
+      }
+    } else {
+      if (!name || !email || !password) { setError('Please fill in every field to create your account.'); return }
+      toast.success('Account created — signed in as Employee')
+      onLogin({ role: 'employee', name, email })
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-[#F8F8F8] relative overflow-hidden">
+      {/* Ambient background */}
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute -top-40 -left-40 w-[520px] h-[520px] rounded-full bg-sky-400/15 blur-3xl" />
+        <div className="absolute -bottom-40 -right-40 w-[520px] h-[520px] rounded-full bg-teal-400/15 blur-3xl" />
+        <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, #1A1A1A 1px, transparent 0)', backgroundSize: '28px 28px' }} />
       </div>
 
-      <div className="hidden lg:block relative overflow-hidden bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-800">
-        <div className="absolute inset-0 opacity-30" style={{ backgroundImage: 'radial-gradient(circle at 20% 20%, rgba(255,255,255,0.4), transparent 40%), radial-gradient(circle at 80% 60%, rgba(255,255,255,0.3), transparent 40%)' }} />
-        <div className="absolute inset-0 flex flex-col justify-between p-12 text-white">
-          <div className="flex items-center gap-2 text-sm font-medium opacity-80">
-            <Zap className="w-4 h-4" /> Enterprise Asset Management
+      {/* Top bar */}
+      <header className="relative z-10 flex items-center justify-between px-6 lg:px-12 py-5">
+        <button onClick={onBackHome} className="flex items-center gap-2 group">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-sky-500 to-teal-500 flex items-center justify-center shadow-lg shadow-sky-500/25 group-hover:shadow-sky-500/40 transition-shadow">
+            <Boxes className="w-5 h-5 text-white" />
           </div>
-          <div className="space-y-8">
-            <AnimatePresence mode="wait">
-              {slides.map((s, i) => i === slide && (
-                <motion.div key={s.title} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -16 }} transition={{ duration: 0.5 }}>
-                  <div className="w-14 h-14 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center mb-5 backdrop-blur">
-                    <s.icon className="w-7 h-7" />
-                  </div>
-                  <h2 className="text-4xl font-bold tracking-tight leading-tight mb-3">{s.title}</h2>
-                  <p className="text-white/70 text-lg max-w-md leading-relaxed">{s.body}</p>
-                </motion.div>
-              ))}
-            </AnimatePresence>
-            <div className="flex gap-1.5">
-              {slides.map((_, i) => (
-                <button key={i} onClick={() => setSlide(i)} className={`h-1.5 rounded-full transition-all ${i === slide ? 'w-10 bg-white' : 'w-4 bg-white/30'}`} />
+          <span className="text-lg font-bold tracking-tight text-slate-900">AssetFlow</span>
+        </button>
+        <button onClick={onBackHome} className="text-sm text-slate-600 hover:text-slate-900 flex items-center gap-1">
+          <ChevronLeft className="w-4 h-4" /> Back to home
+        </button>
+      </header>
+
+      <div className="relative z-10 grid lg:grid-cols-2 gap-10 lg:gap-16 px-6 lg:px-16 pt-6 lg:pt-10 max-w-7xl mx-auto">
+        {/* Left copy */}
+        <div className="hidden lg:flex flex-col justify-center pr-6">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-slate-200 shadow-sm w-fit text-xs font-medium text-slate-700 mb-6">
+            <Sparkles className="w-3.5 h-3.5 text-sky-500" /> Trusted by 200+ ops teams
+          </div>
+          <h1 className="text-5xl font-bold tracking-tight text-slate-900 leading-[1.05] mb-5">
+            Every asset. <br />
+            Every workflow. <br />
+            <span className="bg-gradient-to-r from-sky-500 to-teal-500 bg-clip-text text-transparent">In one place.</span>
+          </h1>
+          <p className="text-slate-600 text-lg max-w-md leading-relaxed mb-8">
+            Sign in to your workspace to manage allocations, bookings, maintenance and audits — with real-time conflict prevention.
+          </p>
+          <div className="grid grid-cols-3 gap-3 max-w-md">
+            {[
+              { icon: ShieldCheck, label: 'Conflict-free' },
+              { icon: Wrench, label: 'Smart tickets' },
+              { icon: TrendingUp, label: 'Live analytics' },
+            ].map((f) => (
+              <div key={f.label} className="rounded-xl bg-white/70 border border-slate-200 p-3 backdrop-blur">
+                <f.icon className="w-4 h-4 text-sky-500 mb-1.5" />
+                <div className="text-xs font-medium text-slate-700">{f.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Right form card */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="w-full flex items-start lg:items-center justify-center"
+        >
+          <div className="w-full max-w-md bg-white rounded-2xl border border-slate-200 shadow-xl shadow-slate-900/5 p-8">
+            <div className="flex bg-slate-100 rounded-lg p-1 mb-6 text-sm font-medium">
+              {['login', 'signup'].map((m) => (
+                <button
+                  key={m}
+                  onClick={() => { setMode(m); setError('') }}
+                  className={`flex-1 py-2 rounded-md transition-all ${mode === m ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500'}`}
+                >
+                  {m === 'login' ? 'Sign in' : 'Create account'}
+                </button>
               ))}
             </div>
+
+            <h2 className="text-2xl font-bold tracking-tight text-slate-900 mb-1">
+              {mode === 'login' ? 'Welcome back' : 'Get started free'}
+            </h2>
+            <p className="text-sm text-slate-500 mb-6">
+              {mode === 'login' ? 'Enter your credentials to access your workspace.' : 'Create your employee account in seconds.'}
+            </p>
+
+            <form onSubmit={submit} className="space-y-4">
+              {mode === 'signup' && (
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 mb-1.5 block uppercase tracking-wide">Full name</label>
+                  <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Priya Shah" className="h-11 rounded-lg border-slate-200 bg-slate-50/50 focus-visible:ring-sky-400" />
+                </div>
+              )}
+              <div>
+                <label className="text-xs font-semibold text-slate-700 mb-1.5 block uppercase tracking-wide">Work email</label>
+                <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@company.com" className="h-11 rounded-lg border-slate-200 bg-slate-50/50 focus-visible:ring-sky-400" />
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Password</label>
+                  {mode === 'login' && <button type="button" className="text-xs text-sky-500 hover:text-sky-600 font-medium">Forgot?</button>}
+                </div>
+                <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="h-11 rounded-lg border-slate-200 bg-slate-50/50 focus-visible:ring-sky-400" />
+              </div>
+
+              {error && (
+                <div className="text-xs text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2 flex items-start gap-2">
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" /> {error}
+                </div>
+              )}
+
+              {mode === 'signup' && (
+                <div className="text-xs text-slate-600 bg-sky-50 border border-sky-200 rounded-lg p-3 flex gap-2">
+                  <ShieldCheck className="w-4 h-4 text-sky-500 shrink-0 mt-0.5" />
+                  <span>Creates an employee account. Admin privileges are assigned by your workspace owner.</span>
+                </div>
+              )}
+
+              <Button type="submit" className="w-full h-11 rounded-lg bg-gradient-to-r from-sky-500 to-teal-500 hover:from-sky-600 hover:to-teal-600 text-white font-semibold shadow-lg shadow-sky-500/25 active:scale-[0.98] transition-all">
+                {mode === 'login' ? 'Sign in' : 'Create account'} <ArrowRight className="w-4 h-4 ml-1.5" />
+              </Button>
+            </form>
+
+            {mode === 'login' && (
+              <div className="mt-5 p-3 rounded-lg bg-slate-50 border border-slate-200">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">Admin demo credentials</div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-600 font-mono">admin@assetflow.io</span>
+                  <span className="text-slate-600 font-mono">admin123</span>
+                </div>
+                <div className="text-[10px] text-slate-500 mt-1.5">Any other email/password signs you in as an Employee.</div>
+              </div>
+            )}
           </div>
-          <div className="text-xs text-white/60">Trusted by IT-Ops, Facilities & Finance teams to keep 1,200+ assets flowing.</div>
-        </div>
+        </motion.div>
       </div>
     </div>
   )
@@ -211,7 +664,7 @@ function Sidebar({ active, onSelect, role, onClose }) {
     <aside className="h-full w-[240px] flex-shrink-0 flex flex-col bg-card/70 backdrop-blur-xl border-r border-border">
       <div className="h-16 px-5 flex items-center justify-between border-b border-border">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-xl bg-indigo-600 flex items-center justify-center shadow-md shadow-indigo-600/30">
+          <div className="w-8 h-8 rounded-xl bg-sky-600 flex items-center justify-center shadow-md shadow-sky-600/30">
             <Boxes className="w-4 h-4 text-white" />
           </div>
           <span className="text-[15px] font-bold tracking-tight">AssetFlow</span>
@@ -231,31 +684,33 @@ function Sidebar({ active, onSelect, role, onClose }) {
               key={item.key}
               onClick={() => { onSelect(item.key); onClose?.() }}
               className={`w-full group flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                isActive ? 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400' : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
+                isActive ? 'bg-sky-500/10 text-sky-600 dark:text-sky-400' : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
               }`}
             >
-              <Icon className={`w-4 h-4 ${isActive ? 'text-indigo-500' : ''}`} />
+              <Icon className={`w-4 h-4 ${isActive ? 'text-sky-500' : ''}`} />
               <span>{item.label}</span>
-              {isActive && <span className="ml-auto w-1 h-4 rounded-full bg-indigo-500" />}
+              {isActive && <span className="ml-auto w-1 h-4 rounded-full bg-sky-500" />}
             </button>
           )
         })}
       </nav>
       <div className="p-3 border-t border-border">
-        <div className="rounded-xl border border-border p-3 bg-gradient-to-br from-indigo-500/5 to-purple-500/5">
+        <div className="rounded-xl border border-border p-3 bg-gradient-to-br from-sky-500/5 to-purple-500/5">
           <div className="flex items-center gap-2 mb-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+            <Sparkles className="w-3.5 h-3.5 text-sky-500" />
             <span className="text-xs font-semibold">Q2 Audit Ready</span>
           </div>
           <p className="text-[11px] text-muted-foreground leading-relaxed mb-2">Start a new physical audit for this quarter.</p>
-          <Button size="sm" className="h-7 w-full text-[11px] bg-indigo-600 hover:bg-indigo-500 text-white" onClick={() => onSelect('audit')}>Launch wizard</Button>
+          <Button size="sm" className="h-7 w-full text-[11px] bg-sky-500 hover:bg-sky-600 text-white" onClick={() => onSelect('audit')}>Launch wizard</Button>
         </div>
       </div>
     </aside>
   )
 }
 
-function TopBar({ role, setRole, theme, setTheme, onSearchOpen, onMenu, activeLabel }) {
+function TopBar({ role, setRole, theme, setTheme, onSearchOpen, onMenu, activeLabel, user, onLogout }) {
+  const [menuOpen, setMenuOpen] = useState(false)
+  const initials = user?.name?.split(' ').map((x) => x[0]).slice(0, 2).join('') || 'PS'
   return (
     <header className="h-16 border-b border-border bg-background/70 backdrop-blur-xl flex items-center px-4 lg:px-6 gap-4 sticky top-0 z-30">
       <button onClick={onMenu} className="lg:hidden text-muted-foreground">
@@ -287,13 +742,29 @@ function TopBar({ role, setRole, theme, setTheme, onSearchOpen, onMenu, activeLa
           <Bell className="w-4 h-4" />
           <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-rose-500" />
         </button>
-        <div className="ml-2 flex items-center gap-2 rounded-lg pl-2 pr-1 py-1 hover:bg-muted cursor-pointer">
-          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold">PS</div>
-          <div className="hidden md:block">
-            <div className="text-xs font-medium leading-none">Priya Shah</div>
-            <div className="text-[10px] text-muted-foreground capitalize mt-0.5">{role}</div>
-          </div>
-          <ChevronDown className="hidden md:block w-3.5 h-3.5 text-muted-foreground" />
+        <div className="ml-2 relative">
+          <button onClick={() => setMenuOpen((v) => !v)} className="flex items-center gap-2 rounded-lg pl-2 pr-1 py-1 hover:bg-muted cursor-pointer">
+            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-sky-500 to-teal-500 flex items-center justify-center text-white text-xs font-bold">{initials}</div>
+            <div className="hidden md:block text-left">
+              <div className="text-xs font-medium leading-none">{user?.name ?? 'Priya Shah'}</div>
+              <div className="text-[10px] text-muted-foreground capitalize mt-0.5">{role}</div>
+            </div>
+            <ChevronDown className="hidden md:block w-3.5 h-3.5 text-muted-foreground" />
+          </button>
+          {menuOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
+              <div className="absolute right-0 top-full mt-2 w-56 rounded-xl border border-border bg-card shadow-xl z-50 overflow-hidden">
+                <div className="p-3 border-b border-border">
+                  <div className="text-sm font-semibold">{user?.name ?? 'Priya Shah'}</div>
+                  <div className="text-xs text-muted-foreground truncate">{user?.email ?? 'priya@assetflow.io'}</div>
+                </div>
+                <button onClick={() => { setMenuOpen(false); onLogout() }} className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted text-rose-500">
+                  <LogOut className="w-4 h-4" /> Sign out
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </header>
@@ -302,29 +773,47 @@ function TopBar({ role, setRole, theme, setTheme, onSearchOpen, onMenu, activeLa
 
 /* ---------------- Dashboard ---------------- */
 
-function Dashboard({ onQuick, onNavigate }) {
+function Dashboard({ onQuick, onNavigate, user }) {
+  const firstName = user?.name?.split(' ')[0] ?? 'Priya'
+  const hour = new Date().getHours()
+  const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'
+
+  const primaryKpis = KPIS.slice(0, 4)
+  const secondaryKpis = KPIS.slice(4)
+
+  const quickActions = [
+    { key: 'register', label: 'Register Asset', desc: 'Add a new asset to the inventory', icon: Plus, tint: 'from-sky-500 to-blue-500' },
+    { key: 'book', label: 'Book a Resource', desc: 'Reserve rooms, projectors, vehicles', icon: CalendarDays, tint: 'from-teal-500 to-emerald-500' },
+    { key: 'maintenance', label: 'Raise Maintenance', desc: 'Flag an issue for the ops team', icon: Wrench, tint: 'from-amber-500 to-orange-500' },
+  ]
+
   return (
-    <div className="p-6 lg:p-8 space-y-6 max-w-[1400px] mx-auto">
+    <div className="p-6 lg:p-8 space-y-6 max-w-[1500px] mx-auto">
+      {/* Hero header */}
       <Reveal>
-        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
-          <div>
-            <h1 className="text-2xl lg:text-3xl font-bold tracking-tight">Operational Snapshot</h1>
-            <p className="text-muted-foreground text-sm mt-1">Live view of your organization’s assets, bookings and workflows.</p>
-          </div>
-          <div className="flex gap-2 flex-wrap">
-            <Button onClick={() => onQuick('register')} className="bg-indigo-600 hover:bg-indigo-500 text-white h-10 rounded-lg font-medium active:scale-[0.98] transition-transform">
-              <Plus className="w-4 h-4 mr-1.5" /> Register Asset
-            </Button>
-            <Button onClick={() => onQuick('book')} variant="outline" className="h-10 rounded-lg border-border font-medium">
-              <CalendarDays className="w-4 h-4 mr-1.5" /> Book Resource
-            </Button>
-            <Button onClick={() => onQuick('maintenance')} variant="outline" className="h-10 rounded-lg border-border font-medium">
-              <Wrench className="w-4 h-4 mr-1.5" /> Raise Maintenance
-            </Button>
+        <div className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-sky-500 via-sky-600 to-teal-500 p-6 md:p-8 text-white shadow-xl shadow-sky-500/20">
+          <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(circle at 20% 20%, white 1.5px, transparent 1.5px), radial-gradient(circle at 80% 60%, white 1.5px, transparent 1.5px)', backgroundSize: '48px 48px' }} />
+          <div className="relative flex flex-col md:flex-row md:items-end justify-between gap-5">
+            <div>
+              <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/15 backdrop-blur border border-white/20 text-[11px] font-medium mb-3">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-pulse" /> All systems operational
+              </div>
+              <h1 className="text-3xl md:text-4xl font-bold tracking-tight mb-1.5">{greeting}, {firstName}</h1>
+              <p className="text-white/80 text-sm md:text-base max-w-lg leading-relaxed">Here is what's happening across your workspace today — 3 items need your attention.</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={() => onQuick('register')} className="h-10 px-4 rounded-xl bg-white text-sky-600 hover:bg-slate-50 font-semibold shadow-md active:scale-[0.98] transition-transform">
+                <Plus className="w-4 h-4 mr-1.5" /> Register Asset
+              </Button>
+              <Button onClick={() => onQuick('book')} className="h-10 px-4 rounded-xl bg-white/15 text-white hover:bg-white/25 font-semibold border border-white/20 backdrop-blur active:scale-[0.98] transition-transform">
+                <CalendarDays className="w-4 h-4 mr-1.5" /> Book Resource
+              </Button>
+            </div>
           </div>
         </div>
       </Reveal>
 
+      {/* Alert banner */}
       <Reveal delay={0.05}>
         <div className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-4 flex items-start gap-3">
           <div className="w-9 h-9 rounded-xl bg-rose-500/15 text-rose-500 flex items-center justify-center shrink-0">
@@ -340,23 +829,44 @@ function Dashboard({ onQuick, onNavigate }) {
         </div>
       </Reveal>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
-        {KPIS.map((k, idx) => {
+      {/* Primary KPIs (big) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {primaryKpis.map((k, idx) => {
           const Icon = ICON_MAP[k.icon]
+          const deltaColor = k.tone === 'emerald' ? 'text-emerald-500' : k.tone === 'amber' ? 'text-amber-500' : k.tone === 'indigo' ? 'text-sky-500' : 'text-muted-foreground'
           return (
             <Reveal key={k.key} delay={0.05 + idx * 0.03}>
               <motion.div whileHover={{ y: -4 }} transition={{ duration: 0.2 }}>
-                <Card className="rounded-2xl border-border p-4 hover:shadow-lg transition-shadow bg-card">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${TONE_STYLES[k.tone]}`}>
-                      <Icon className="w-4 h-4" />
+                <Card className="relative rounded-2xl border-border p-5 hover:shadow-xl hover:shadow-sky-500/5 transition-all bg-card overflow-hidden">
+                  <div className={`absolute top-0 right-0 w-24 h-24 -translate-y-6 translate-x-6 rounded-full ${TONE_STYLES[k.tone]} opacity-40 blur-2xl`} />
+                  <div className="relative">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${TONE_STYLES[k.tone]}`}>
+                        <Icon className="w-5 h-5" />
+                      </div>
+                      <span className={`text-xs font-semibold ${deltaColor} flex items-center gap-1`}>
+                        {k.delta.startsWith('+') && <TrendingUp className="w-3 h-3" />}
+                        {k.delta}
+                      </span>
                     </div>
-                    <span className={`text-[11px] font-semibold ${k.tone === 'emerald' ? 'text-emerald-500' : k.tone === 'amber' ? 'text-amber-500' : k.tone === 'indigo' ? 'text-indigo-500' : 'text-muted-foreground'}`}>{k.delta}</span>
+                    <div className="text-3xl font-bold tracking-tight tabular-nums">
+                      <CountUp value={k.value} />
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1 font-medium">{k.label}</div>
+                    {/* Sparkline placeholder bars */}
+                    <div className="mt-3 flex items-end gap-0.5 h-6">
+                      {[40, 65, 50, 70, 55, 78, 62, 82, 68, 90].map((h, i) => (
+                        <motion.div
+                          key={i}
+                          initial={{ height: 0 }}
+                          whileInView={{ height: `${h}%` }}
+                          viewport={{ once: true }}
+                          transition={{ delay: 0.3 + i * 0.03, duration: 0.4 }}
+                          className={`flex-1 rounded-sm ${k.tone === 'emerald' ? 'bg-emerald-500/30' : k.tone === 'amber' ? 'bg-amber-500/30' : k.tone === 'indigo' ? 'bg-sky-500/30' : 'bg-slate-500/30'}`}
+                        />
+                      ))}
+                    </div>
                   </div>
-                  <div className="text-2xl font-bold tracking-tight tabular-nums">
-                    <CountUp value={k.value} />
-                  </div>
-                  <div className="text-xs text-muted-foreground mt-0.5">{k.label}</div>
                 </Card>
               </motion.div>
             </Reveal>
@@ -364,15 +874,26 @@ function Dashboard({ onQuick, onNavigate }) {
         })}
       </div>
 
-      <div className="grid xl:grid-cols-3 gap-6">
+      {/* Two-column: Utilization chart (2/3) + Quick Actions (1/3) */}
+      <div className="grid xl:grid-cols-3 gap-5">
         <Reveal delay={0.1} className="xl:col-span-2">
-          <Card className="rounded-2xl border-border p-5 bg-card">
-            <div className="flex items-center justify-between mb-4">
+          <Card className="rounded-2xl border-border p-5 bg-card h-full">
+            <div className="flex items-center justify-between mb-5">
               <div>
                 <h3 className="font-semibold">Utilization by Department</h3>
                 <p className="text-xs text-muted-foreground">Percentage of allocated assets across teams</p>
               </div>
-              <Badge variant="outline" className="text-[10px] font-medium border-border">This quarter</Badge>
+              <div className="flex gap-2 items-center">
+                {[
+                  { label: 'High', color: 'bg-sky-500' },
+                  { label: 'Med', color: 'bg-sky-400' },
+                  { label: 'Low', color: 'bg-sky-200' },
+                ].map((l) => (
+                  <div key={l.label} className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                    <span className={`w-2 h-2 rounded-sm ${l.color}`} /> {l.label}
+                  </div>
+                ))}
+              </div>
             </div>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
@@ -381,9 +902,9 @@ function Dashboard({ onQuick, onNavigate }) {
                   <XAxis dataKey="dept" stroke="hsl(var(--muted-foreground))" fontSize={11} tickLine={false} axisLine={false} />
                   <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} tickLine={false} axisLine={false} />
                   <Tooltip cursor={{ fill: 'hsl(var(--muted))', opacity: 0.4 }} contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 12, fontSize: 12 }} />
-                  <Bar dataKey="utilization" radius={[6, 6, 0, 0]}>
+                  <Bar dataKey="utilization" radius={[8, 8, 0, 0]}>
                     {UTILIZATION_BY_DEPT.map((entry, i) => (
-                      <Cell key={i} fill={entry.utilization > 80 ? '#6366F1' : entry.utilization > 50 ? '#8b5cf6' : '#c4b5fd'} />
+                      <Cell key={i} fill={entry.utilization > 80 ? '#0EA5E9' : entry.utilization > 50 ? '#38BDF8' : '#BAE6FD'} />
                     ))}
                   </Bar>
                 </BarChart>
@@ -394,19 +915,100 @@ function Dashboard({ onQuick, onNavigate }) {
 
         <Reveal delay={0.15}>
           <Card className="rounded-2xl border-border p-5 bg-card h-full">
+            <div className="mb-4">
+              <h3 className="font-semibold">Quick Actions</h3>
+              <p className="text-xs text-muted-foreground">Speed through your everyday tasks</p>
+            </div>
+            <div className="space-y-2.5">
+              {quickActions.map((qa) => (
+                <button
+                  key={qa.key}
+                  onClick={() => onQuick(qa.key)}
+                  className="w-full group flex items-center gap-3 rounded-xl border border-border p-3 hover:border-sky-300 hover:bg-sky-50/40 dark:hover:bg-sky-500/5 transition-all text-left"
+                >
+                  <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${qa.tint} flex items-center justify-center shrink-0 shadow-md`}>
+                    <qa.icon className="w-4.5 h-4.5 text-white" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold">{qa.label}</div>
+                    <div className="text-[11px] text-muted-foreground truncate">{qa.desc}</div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-sky-500 group-hover:translate-x-0.5 transition-all" />
+                </button>
+              ))}
+            </div>
+          </Card>
+        </Reveal>
+      </div>
+
+      {/* Secondary KPIs + Activity feed */}
+      <div className="grid xl:grid-cols-3 gap-5">
+        <Reveal delay={0.2} className="xl:col-span-2 space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {secondaryKpis.map((k, idx) => {
+              const Icon = ICON_MAP[k.icon]
+              const deltaColor = k.tone === 'emerald' ? 'text-emerald-500' : k.tone === 'amber' ? 'text-amber-500' : k.tone === 'indigo' ? 'text-sky-500' : 'text-muted-foreground'
+              return (
+                <motion.div key={k.key} whileHover={{ y: -3 }} transition={{ duration: 0.2 }}>
+                  <Card className="rounded-2xl border-border p-4 hover:shadow-lg bg-card">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${TONE_STYLES[k.tone]}`}>
+                        <Icon className="w-5 h-5" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <div className="text-2xl font-bold tabular-nums"><CountUp value={k.value} /></div>
+                          <span className={`text-[11px] font-semibold ${deltaColor}`}>{k.delta}</span>
+                        </div>
+                        <div className="text-xs text-muted-foreground">{k.label}</div>
+                      </div>
+                    </div>
+                  </Card>
+                </motion.div>
+              )
+            })}
+          </div>
+
+          {/* Idle assets snapshot */}
+          <Card className="rounded-2xl border-border p-5 bg-card">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="font-semibold flex items-center gap-2"><Radar className="w-4 h-4 text-sky-500" /> Idle Asset Radar</h3>
+                <p className="text-xs text-muted-foreground">AI-flagged candidates for re-allocation</p>
+              </div>
+              <button className="text-xs text-sky-500 hover:text-sky-600 font-medium" onClick={() => onNavigate('reports')}>View all</button>
+            </div>
+            <div className="grid sm:grid-cols-2 gap-2.5">
+              {IDLE_ASSETS.slice(0, 4).map((a) => (
+                <div key={a.tag} className="rounded-xl border border-border p-3 flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-rose-500/10 text-rose-500 flex items-center justify-center shrink-0">
+                    <Clock className="w-4 h-4" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium truncate">{a.name}</div>
+                    <div className="text-[11px] text-muted-foreground truncate">
+                      <span className="font-mono text-sky-500">{a.tag}</span> • Unused {a.days}+ days
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </Reveal>
+
+        <Reveal delay={0.25}>
+          <Card className="rounded-2xl border-border p-5 bg-card h-full">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold">Recent Activity</h3>
-              <button className="text-xs text-indigo-500 hover:text-indigo-400 font-medium" onClick={() => onNavigate('logs')}>View all</button>
+              <button className="text-xs text-sky-500 hover:text-sky-600 font-medium" onClick={() => onNavigate('logs')}>View all</button>
             </div>
-            <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
-              {ACTIVITY.slice(0, 7).map((a) => {
+            <div className="space-y-1 max-h-[380px] overflow-y-auto pr-1">
+              {ACTIVITY.slice(0, 8).map((a, i) => {
                 const Icon = ICON_MAP[a.icon] ?? Sparkles
                 return (
-                  <div key={a.id} className="flex gap-3 group">
-                    <div className="relative shrink-0">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center border ${a.type === 'alert' ? 'bg-rose-500/10 text-rose-500 border-rose-500/20' : a.type === 'maintenance' ? 'bg-amber-500/10 text-amber-600 border-amber-500/20' : a.type === 'booking' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20' : 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20'}`}>
-                        <Icon className="w-3.5 h-3.5" />
-                      </div>
+                  <div key={a.id} className="flex gap-3 group py-2 border-b border-border last:border-0">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center border shrink-0 ${a.type === 'alert' ? 'bg-rose-500/10 text-rose-500 border-rose-500/20' : a.type === 'maintenance' ? 'bg-amber-500/10 text-amber-600 border-amber-500/20' : a.type === 'booking' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20' : 'bg-sky-500/10 text-sky-500 border-sky-500/20'}`}>
+                      <Icon className="w-3.5 h-3.5" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="text-xs text-foreground leading-relaxed">{a.text}</div>
@@ -448,7 +1050,7 @@ function AssetsScreen({ assets, onOpenAllocate, onOpenRegister }) {
         </div>
         <div className="flex gap-2">
           <Button variant="outline" className="rounded-lg h-10 border-border"><Filter className="w-4 h-4 mr-1.5" /> Export</Button>
-          <Button onClick={onOpenRegister} className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg h-10 active:scale-[0.98] transition-transform">
+          <Button onClick={onOpenRegister} className="bg-sky-500 hover:bg-sky-600 text-white rounded-lg h-10 active:scale-[0.98] transition-transform">
             <Plus className="w-4 h-4 mr-1.5" /> Register Asset
           </Button>
         </div>
@@ -501,7 +1103,7 @@ function AssetsScreen({ assets, onOpenAllocate, onOpenRegister }) {
                   transition={{ delay: i * 0.02, duration: 0.3 }}
                   className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors"
                 >
-                  <td className="px-4 py-3 font-mono text-xs font-medium text-indigo-500">{a.tag}</td>
+                  <td className="px-4 py-3 font-mono text-xs font-medium text-sky-500">{a.tag}</td>
                   <td className="px-4 py-3 font-medium">{a.name}</td>
                   <td className="px-4 py-3 hidden md:table-cell text-muted-foreground">{a.category}</td>
                   <td className="px-4 py-3"><StatusChip status={a.status} /></td>
@@ -542,7 +1144,7 @@ function AllocateDialog({ asset, onClose, onAllocate, onRaiseTransfer }) {
       <DialogContent className="max-w-lg rounded-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <span className="font-mono text-indigo-500">{asset.tag}</span>
+            <span className="font-mono text-sky-500">{asset.tag}</span>
             <span>— {asset.name}</span>
           </DialogTitle>
           <DialogDescription>Assign this asset to an employee. Conflicts are checked in real-time.</DialogDescription>
@@ -605,7 +1207,7 @@ function AllocateDialog({ asset, onClose, onAllocate, onRaiseTransfer }) {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={onClose} className="rounded-lg">Cancel</Button>
-              <Button className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg active:scale-[0.98] transition-transform" onClick={() => { const to = EMPLOYEES.find((e) => e.id === target); onAllocate(asset, to); onClose() }}>
+              <Button className="bg-sky-500 hover:bg-sky-600 text-white rounded-lg active:scale-[0.98] transition-transform" onClick={() => { const to = EMPLOYEES.find((e) => e.id === target); onAllocate(asset, to); onClose() }}>
                 <UserPlus className="w-4 h-4 mr-1.5" /> Confirm Allocation
               </Button>
             </DialogFooter>
@@ -629,17 +1231,17 @@ function AllocationsScreen({ assets, onOpenAllocate, transfers }) {
 
       <div className="grid lg:grid-cols-3 gap-5">
         <Card className="rounded-2xl border-border p-5 bg-card lg:col-span-2">
-          <h3 className="font-semibold mb-4 flex items-center gap-2"><Users className="w-4 h-4 text-indigo-500" /> Currently Allocated</h3>
+          <h3 className="font-semibold mb-4 flex items-center gap-2"><Users className="w-4 h-4 text-sky-500" /> Currently Allocated</h3>
           <div className="space-y-2">
             {allocated.map((a) => (
               <div key={a.id} className="flex items-center gap-3 rounded-xl border border-border p-3 hover:bg-muted/40 transition-colors">
-                <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-500 flex items-center justify-center shrink-0">
+                <div className="w-10 h-10 rounded-xl bg-sky-500/10 text-sky-500 flex items-center justify-center shrink-0">
                   <Package className="w-4 h-4" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium truncate">{a.name}</div>
                   <div className="text-xs text-muted-foreground flex items-center gap-2 flex-wrap">
-                    <span className="font-mono text-indigo-500">{a.tag}</span>
+                    <span className="font-mono text-sky-500">{a.tag}</span>
                     <span>•</span><span>{a.allocatedTo}</span>
                     <span>•</span><span>{a.dept}</span>
                   </div>
@@ -660,7 +1262,7 @@ function AllocationsScreen({ assets, onOpenAllocate, transfers }) {
             {transfers.map((t) => (
               <div key={t.id} className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 space-y-2">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="font-mono text-indigo-500">{t.tag}</span>
+                  <span className="font-mono text-sky-500">{t.tag}</span>
                   <Badge className={PRIORITY_META.medium + ' border text-[10px]'}>Awaiting approval</Badge>
                 </div>
                 <div className="text-sm font-medium">{t.name}</div>
@@ -717,7 +1319,7 @@ function BookingsScreen({ bookings, onBook }) {
               <SelectItem value="AF-0088">Toyota Innova</SelectItem>
             </SelectContent>
           </Select>
-          <Button onClick={() => setShowForm(true)} className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg h-10 active:scale-[0.98] transition-transform">
+          <Button onClick={() => setShowForm(true)} className="bg-sky-500 hover:bg-sky-600 text-white rounded-lg h-10 active:scale-[0.98] transition-transform">
             <Plus className="w-4 h-4 mr-1.5" /> New Booking
           </Button>
         </div>
@@ -747,15 +1349,15 @@ function BookingsScreen({ bookings, onBook }) {
                       <motion.div
                         initial={{ opacity: 0, scale: 0.96 }}
                         animate={{ opacity: 1, scale: 1 }}
-                        className="absolute inset-x-1 top-1 rounded-lg bg-indigo-500/15 border border-indigo-500/30 p-1.5 z-10 overflow-hidden"
+                        className="absolute inset-x-1 top-1 rounded-lg bg-sky-500/15 border border-sky-500/30 p-1.5 z-10 overflow-hidden"
                         style={{ height: `calc(${(booking.end - booking.start) * 56}px - 8px)` }}
                       >
-                        <div className="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 truncate">{booking.title}</div>
+                        <div className="text-[10px] font-semibold text-sky-600 dark:text-sky-400 truncate">{booking.title}</div>
                         <div className="text-[10px] text-muted-foreground truncate">{booking.user}</div>
                         <div className="text-[10px] text-muted-foreground">{booking.start}:00 – {booking.end}:00</div>
                       </motion.div>
                     )}
-                    {booking && !isStart && <div className="absolute inset-0 bg-indigo-500/5" />}
+                    {booking && !isStart && <div className="absolute inset-0 bg-sky-500/5" />}
                   </div>
                 )
               })}
@@ -806,7 +1408,7 @@ function BookingsScreen({ bookings, onBook }) {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowForm(false)} className="rounded-lg">Cancel</Button>
-            <Button onClick={submit} disabled={hasOverlap()} className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg">Confirm Booking</Button>
+            <Button onClick={submit} disabled={hasOverlap()} className="bg-sky-500 hover:bg-sky-600 text-white rounded-lg">Confirm Booking</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -829,7 +1431,7 @@ function MaintenanceScreen({ tickets, setTickets, onRaise }) {
           <h1 className="text-2xl lg:text-3xl font-bold tracking-tight">Maintenance Board</h1>
           <p className="text-muted-foreground text-sm mt-1">Drag tickets across columns to progress workflows.</p>
         </div>
-        <Button onClick={onRaise} className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg h-10 active:scale-[0.98] transition-transform">
+        <Button onClick={onRaise} className="bg-sky-500 hover:bg-sky-600 text-white rounded-lg h-10 active:scale-[0.98] transition-transform">
           <Plus className="w-4 h-4 mr-1.5" /> Raise Request
         </Button>
       </div>
@@ -863,7 +1465,7 @@ function MaintenanceScreen({ tickets, setTickets, onRaise }) {
                     className="cursor-grab active:cursor-grabbing rounded-xl border border-border bg-background p-3 shadow-sm hover:shadow-md transition-shadow"
                   >
                     <div className="flex items-center justify-between mb-1.5">
-                      <span className="font-mono text-[10px] text-indigo-500 font-semibold">{t.assetTag}</span>
+                      <span className="font-mono text-[10px] text-sky-500 font-semibold">{t.assetTag}</span>
                       <Badge className={PRIORITY_META[t.priority] + ' border text-[10px] capitalize'}>{t.priority}</Badge>
                     </div>
                     <div className="text-sm font-medium mb-1">{t.assetName}</div>
@@ -872,7 +1474,7 @@ function MaintenanceScreen({ tickets, setTickets, onRaise }) {
                       <span className="inline-flex items-center gap-1"><User className="w-3 h-3" />{t.raisedBy}</span>
                       <span>{t.date}</span>
                     </div>
-                    {t.tech && <div className="mt-2 text-[10px] rounded-md bg-indigo-500/10 text-indigo-500 px-2 py-1 inline-block">Tech: {t.tech}</div>}
+                    {t.tech && <div className="mt-2 text-[10px] rounded-md bg-sky-500/10 text-sky-500 px-2 py-1 inline-block">Tech: {t.tech}</div>}
                   </motion.div>
                 ))}
                 {items.length === 0 && (
@@ -936,12 +1538,12 @@ function AuditScreen({ assets }) {
               const res = results[a.id]
               return (
                 <div key={a.id} className="rounded-xl border border-border p-3 flex items-center gap-3 hover:bg-muted/30 transition-colors">
-                  <div className="w-9 h-9 rounded-lg bg-indigo-500/10 text-indigo-500 flex items-center justify-center shrink-0">
+                  <div className="w-9 h-9 rounded-lg bg-sky-500/10 text-sky-500 flex items-center justify-center shrink-0">
                     <Package className="w-4 h-4" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium truncate">{a.name}</div>
-                    <div className="text-xs text-muted-foreground"><span className="font-mono text-indigo-500">{a.tag}</span> • {a.location}</div>
+                    <div className="text-xs text-muted-foreground"><span className="font-mono text-sky-500">{a.tag}</span> • {a.location}</div>
                   </div>
                   <div className="flex gap-1">
                     {['verified', 'missing', 'damaged'].map((v) => (
@@ -954,7 +1556,7 @@ function AuditScreen({ assets }) {
               )
             })}
             <div className="flex justify-end pt-2">
-              <Button onClick={() => setStep(1)} disabled={done < total} className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg">
+              <Button onClick={() => setStep(1)} disabled={done < total} className="bg-sky-500 hover:bg-sky-600 text-white rounded-lg">
                 Generate Discrepancy Report <ChevronRight className="w-4 h-4 ml-1" />
               </Button>
             </div>
@@ -984,7 +1586,7 @@ function AuditScreen({ assets }) {
             </div>
             <div className="flex justify-between">
               <Button variant="outline" onClick={() => setStep(0)} className="rounded-lg"><ChevronLeft className="w-4 h-4 mr-1" /> Back</Button>
-              <Button onClick={() => toast.success('Report exported to PDF')} className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg">Export PDF</Button>
+              <Button onClick={() => toast.success('Report exported to PDF')} className="bg-sky-500 hover:bg-sky-600 text-white rounded-lg">Export PDF</Button>
             </div>
           </div>
         )}
@@ -1005,7 +1607,7 @@ function ReportsScreen() {
 
       <div className="grid lg:grid-cols-2 gap-5">
         <Card className="rounded-2xl border-border p-5 bg-card">
-          <h3 className="font-semibold mb-4 flex items-center gap-2"><TrendingUp className="w-4 h-4 text-indigo-500" /> Utilization by Department</h3>
+          <h3 className="font-semibold mb-4 flex items-center gap-2"><TrendingUp className="w-4 h-4 text-sky-500" /> Utilization by Department</h3>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={UTILIZATION_BY_DEPT} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
@@ -1050,7 +1652,7 @@ function ReportsScreen() {
                 <Clock className="w-4 h-4" />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium">{a.name} <span className="font-mono text-xs text-indigo-500 ml-1">{a.tag}</span></div>
+                <div className="text-sm font-medium">{a.name} <span className="font-mono text-xs text-sky-500 ml-1">{a.tag}</span></div>
                 <div className="text-xs text-muted-foreground">{a.category} • {a.location}</div>
               </div>
               <div className="text-xs"><span className="font-semibold text-rose-500">Unused {a.days}+ days</span></div>
@@ -1130,12 +1732,12 @@ function OrgScreen() {
           <Card className="rounded-2xl border-border p-5 bg-card">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold">Hierarchy</h3>
-              <Button size="sm" className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg"><Plus className="w-3.5 h-3.5 mr-1" /> Add Dept</Button>
+              <Button size="sm" className="bg-sky-500 hover:bg-sky-600 text-white rounded-lg"><Plus className="w-3.5 h-3.5 mr-1" /> Add Dept</Button>
             </div>
             <div className="space-y-2">
               {DEPARTMENTS.map((d) => (
                 <div key={d.id} className="rounded-xl border border-border p-3 flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-lg bg-indigo-500/10 text-indigo-500 flex items-center justify-center"><Building2 className="w-4 h-4" /></div>
+                  <div className="w-9 h-9 rounded-lg bg-sky-500/10 text-sky-500 flex items-center justify-center"><Building2 className="w-4 h-4" /></div>
                   <div className="flex-1"><div className="text-sm font-medium">{d.name}</div><div className="text-xs text-muted-foreground">Head: {d.head}</div></div>
                   <Badge variant="outline" className="border-border">{d.members} members</Badge>
                 </div>
@@ -1147,13 +1749,13 @@ function OrgScreen() {
           <Card className="rounded-2xl border-border p-5 bg-card">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold">Asset Categories & Custom Fields</h3>
-              <Button size="sm" className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg"><Plus className="w-3.5 h-3.5 mr-1" /> New Category</Button>
+              <Button size="sm" className="bg-sky-500 hover:bg-sky-600 text-white rounded-lg"><Plus className="w-3.5 h-3.5 mr-1" /> New Category</Button>
             </div>
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {CATEGORIES.map((c) => (
                 <div key={c} className="rounded-xl border border-border p-4 hover:bg-muted/30 transition-colors">
                   <div className="flex items-center gap-2 mb-2">
-                    <div className="w-8 h-8 rounded-lg bg-indigo-500/10 text-indigo-500 flex items-center justify-center"><Layers className="w-3.5 h-3.5" /></div>
+                    <div className="w-8 h-8 rounded-lg bg-sky-500/10 text-sky-500 flex items-center justify-center"><Layers className="w-3.5 h-3.5" /></div>
                     <div className="font-medium">{c}</div>
                   </div>
                   <div className="text-xs text-muted-foreground">Custom fields: Serial, Warranty, Condition</div>
@@ -1166,12 +1768,12 @@ function OrgScreen() {
           <Card className="rounded-2xl border-border p-5 bg-card">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold">Employee Directory</h3>
-              <Button size="sm" className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg"><Plus className="w-3.5 h-3.5 mr-1" /> Invite</Button>
+              <Button size="sm" className="bg-sky-500 hover:bg-sky-600 text-white rounded-lg"><Plus className="w-3.5 h-3.5 mr-1" /> Invite</Button>
             </div>
             <div className="space-y-2">
               {EMPLOYEES.map((e) => (
                 <div key={e.id} className="rounded-xl border border-border p-3 flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold">{e.avatar}</div>
+                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-sky-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold">{e.avatar}</div>
                   <div className="flex-1"><div className="text-sm font-medium">{e.name}</div><div className="text-xs text-muted-foreground">{e.dept}</div></div>
                   <Select defaultValue={e.role}>
                     <SelectTrigger className="w-32 h-8 rounded-md text-xs"><SelectValue /></SelectTrigger>
@@ -1228,7 +1830,7 @@ function RegisterAssetDialog({ open, onClose, onAdd }) {
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose} className="rounded-lg">Cancel</Button>
-          <Button onClick={submit} className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg">Register</Button>
+          <Button onClick={submit} className="bg-sky-500 hover:bg-sky-600 text-white rounded-lg">Register</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -1277,7 +1879,7 @@ function RaiseMaintenanceDialog({ open, onClose, assets, onRaise }) {
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose} className="rounded-lg">Cancel</Button>
-          <Button onClick={submit} className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg">Submit</Button>
+          <Button onClick={submit} className="bg-sky-500 hover:bg-sky-600 text-white rounded-lg">Submit</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -1287,7 +1889,9 @@ function RaiseMaintenanceDialog({ open, onClose, assets, onRaise }) {
 /* ---------------- App root ---------------- */
 
 function App() {
-  const [loggedIn, setLoggedIn] = useState(false)
+  const [view, setView] = useState('landing') // 'landing' | 'auth' | 'app'
+  const [authMode, setAuthMode] = useState('login')
+  const [currentUser, setCurrentUser] = useState(null)
   const [active, setActive] = useState('dashboard')
   const [role, setRole] = useState('admin')
   const [theme, setTheme] = useState('light')
@@ -1316,9 +1920,23 @@ function App() {
     toast.success(`Transfer request raised: ${asset.tag} → ${to.name}`)
   }
 
+  const handleLogin = (user) => {
+    setCurrentUser(user)
+    setRole(user.role)
+    setActive('dashboard')
+    setView('app')
+  }
+
+  const handleLogout = () => {
+    setCurrentUser(null)
+    setView('landing')
+    toast.success('Signed out')
+  }
+
   const activeLabel = NAV_ITEMS.find((n) => n.key === active)?.label ?? 'Dashboard'
 
-  if (!loggedIn) return <LoginScreen onLogin={() => setLoggedIn(true)} />
+  if (view === 'landing') return <HomePage onGoAuth={(m) => { setAuthMode(m); setView('auth') }} />
+  if (view === 'auth') return <AuthScreen defaultMode={authMode} onLogin={handleLogin} onBackHome={() => setView('landing')} />
 
   return (
     <div className={theme === 'dark' ? 'dark' : ''}>
@@ -1340,11 +1958,13 @@ function App() {
             onSearchOpen={() => setActive('assets')}
             onMenu={() => setMobileOpen(true)}
             activeLabel={activeLabel}
+            user={currentUser}
+            onLogout={handleLogout}
           />
           <main className="flex-1 overflow-x-hidden">
             <AnimatePresence mode="wait">
               <motion.div key={active} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.25 }}>
-                {active === 'dashboard' && <Dashboard onNavigate={setActive} onQuick={(k) => {
+                {active === 'dashboard' && <Dashboard user={currentUser} onNavigate={setActive} onQuick={(k) => {
                   if (k === 'register') setRegisterOpen(true)
                   if (k === 'book') setActive('bookings')
                   if (k === 'maintenance') setMaintOpen(true)
