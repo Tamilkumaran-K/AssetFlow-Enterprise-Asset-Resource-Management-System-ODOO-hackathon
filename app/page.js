@@ -653,14 +653,14 @@ function AuthScreen({ onLogin, defaultMode = 'login' }) {
 /* ---------------- Sidebar & Topbar ---------------- */
 
 const NAV_ITEMS = [
-  { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'employee'] },
-  { key: 'assets', label: 'Assets', icon: Package, roles: ['admin'] },
-  { key: 'allocations', label: 'Allocation & Transfer', icon: ArrowLeftRight, roles: ['admin'] },
-  { key: 'bookings', label: 'Resource Booking', icon: CalendarDays, roles: ['admin', 'employee'] },
-  { key: 'maintenance', label: 'Maintenance', icon: Wrench, roles: ['admin', 'employee'] },
-  { key: 'audit', label: 'Audit', icon: ClipboardCheck, roles: ['admin'] },
-  { key: 'reports', label: 'Reports', icon: BarChart3, roles: ['admin'] },
-  { key: 'logs', label: 'Notifications', icon: Bell, roles: ['admin', 'employee'] },
+  { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'asset manager', 'employee'] },
+  { key: 'assets', label: 'Assets', icon: Package, roles: ['admin', 'asset manager'] },
+  { key: 'allocations', label: 'Allocation & Transfer', icon: ArrowLeftRight, roles: ['admin', 'asset manager'] },
+  { key: 'bookings', label: 'Resource Booking', icon: CalendarDays, roles: ['admin', 'asset manager', 'employee'] },
+  { key: 'maintenance', label: 'Maintenance', icon: Wrench, roles: ['admin', 'asset manager', 'employee'] },
+  { key: 'audit', label: 'Audit', icon: ClipboardCheck, roles: ['admin', 'asset manager'] },
+  { key: 'reports', label: 'Reports', icon: BarChart3, roles: ['admin', 'asset manager'] },
+  { key: 'logs', label: 'Notifications', icon: Bell, roles: ['admin', 'asset manager', 'employee'] },
   { key: 'org', label: 'Organization Setup', icon: Building2, roles: ['admin'] },
 ]
 
@@ -782,7 +782,7 @@ function TopBar({ role, theme, setTheme, onSearchOpen, onMenu, activeLabel, user
 
 function Dashboard({ onQuick, onNavigate, user }) {
   const firstName = user?.name?.split(' ')[0] ?? 'Priya'
-  const isAdmin = user?.role === 'admin'
+  const isAdmin = user?.role === 'admin' || user?.role === 'asset manager'
   const hour = new Date().getHours()
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'
 
@@ -800,7 +800,7 @@ function Dashboard({ onQuick, onNavigate, user }) {
   useEffect(() => {
     async function load() {
       try {
-        const isPlaceholder = !process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('your-supabase-project') || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY.includes('your-supabase')
+        const isPlaceholder = user?.isMockAdmin || !process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('your-supabase-project') || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY.includes('your-supabase')
         if (isPlaceholder) {
           throw new Error('Supabase using placeholder credentials')
         }
@@ -1123,7 +1123,7 @@ function Dashboard({ onQuick, onNavigate, user }) {
 
 /* ---------------- Assets ---------------- */
 
-function AssetDetailsDialog({ asset, open, onClose, onOpenAllocate, isAdmin }) {
+function AssetDetailsDialog({ asset, open, onClose, onOpenAllocate, isAdmin, isMockAdmin }) {
   const [allocHistory, setAllocHistory] = useState([])
   const [maintHistory, setMaintHistory] = useState([])
   const [loading, setLoading] = useState(false)
@@ -1133,7 +1133,7 @@ function AssetDetailsDialog({ asset, open, onClose, onOpenAllocate, isAdmin }) {
     const fetchHistory = async () => {
       setLoading(true)
       try {
-        const isPlaceholder = !process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('your-supabase-project') || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY.includes('your-supabase')
+        const isPlaceholder = isMockAdmin || !process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('your-supabase-project') || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY.includes('your-supabase')
         if (isPlaceholder) {
           throw new Error('Placeholder credentials')
         }
@@ -2836,7 +2836,7 @@ function LogsScreen({ activityLog = [], user, role, onMarkAllRead }) {
 
   useEffect(() => {
     async function fetchLogs() {
-      const isPlaceholder = !process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('your-supabase-project')
+      const isPlaceholder = user?.isMockAdmin || !process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('your-supabase-project')
       if (isPlaceholder) return
 
       setLoadingDb(true)
@@ -3094,7 +3094,7 @@ function LogsScreen({ activityLog = [], user, role, onMarkAllRead }) {
 
 /* ---------------- Org ---------------- */
 
-function OrgScreen({ onDataChanged }) {
+function OrgScreen({ onDataChanged, isMockAdmin }) {
   const [departments, setDepartments] = useState([])
   const [profiles, setProfiles] = useState([])
   const [categories, setCategories] = useState([])
@@ -3109,7 +3109,7 @@ function OrgScreen({ onDataChanged }) {
   const loadData = async () => {
     setLoading(true)
     try {
-      const isPlaceholder = !process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('your-supabase-project') || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY.includes('your-supabase')
+      const isPlaceholder = isMockAdmin || !process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('your-supabase-project') || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY.includes('your-supabase')
       if (isPlaceholder) {
         throw new Error('Supabase using placeholder credentials')
       }
@@ -3893,7 +3893,7 @@ function App() {
   const loadGlobalData = async () => {
     setLoadingApp(true)
     try {
-      const isPlaceholder = !process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('your-supabase-project')
+      const isPlaceholder = currentUser?.isMockAdmin || !process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('your-supabase-project')
       if (isPlaceholder) {
         throw new Error('Supabase using placeholder credentials')
       }
@@ -4079,7 +4079,7 @@ function App() {
 
   const handleAddBooking = async (assetId, startTime, endTime, title) => {
     try {
-      const isPlaceholder = !process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('your-supabase-project')
+      const isPlaceholder = currentUser?.isMockAdmin || !process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('your-supabase-project')
       if (isPlaceholder) {
         throw new Error('Placeholder credentials')
       }
@@ -4369,7 +4369,7 @@ function App() {
                 {active === 'audit' && <AuditScreen assets={assets} departments={departments} profiles={profiles} addLog={addLog} currentUser={currentUser} setAssets={setAssets} />}
                 {active === 'reports' && <ReportsScreen assets={assets} bookings={bookings} tickets={tickets} />}
                 {active === 'logs' && <LogsScreen currentUser={currentUser} role={role} />}
-                {active === 'org' && <OrgScreen onDataChanged={loadGlobalData} />}
+                {active === 'org' && <OrgScreen onDataChanged={loadGlobalData} isMockAdmin={currentUser?.isMockAdmin} />}
               </motion.div>
             </AnimatePresence>
           </main>
