@@ -3504,7 +3504,7 @@ function RegisterAssetDialog({ open, onClose, onAdd, categories = [] }) {
 
 function EmployeeDialog({ open, onClose, onSave, departments, emp }) {
   const [name, setName] = useState('')
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState('admin@assetflow.io')
   const [role, setRole] = useState('Employee')
   const [departmentId, setDepartmentId] = useState('none')
   const [loading, setLoading] = useState(false)
@@ -4281,15 +4281,44 @@ function App() {
     }
   }
 
-  const handleLogin = (user) => {
-    setCurrentUser(user)
-    setRole(user.role)
-    const firstAllowed = NAV_ITEMS.find((n) => n.roles?.includes(user.role))?.key || 'dashboard'
+  const handleLogin = async (authUser) => {
+    if (authUser.isMockAdmin) {
+      setCurrentUser(authUser)
+      setRole('admin')
+      setActive('dashboard')
+      setView('app')
+      return
+    }
+
+    let { data: profile } = await supabase.from('profiles').select('*, department:departments!profiles_department_id_fkey(name)').eq('email', authUser.email).maybeSingle()
+    
+    if (!profile) {
+      const name = authUser.user_metadata?.full_name || authUser.email.split('@')[0]
+      const { data: newProfile, error } = await supabase.from('profiles').insert({
+        id: authUser.id,
+        email: authUser.email,
+        name: name,
+        role: 'Employee'
+      }).select('*, department:departments!profiles_department_id_fkey(name)').single()
+      
+      if (error) {
+        toast.error('Failed to setup profile: ' + error.message)
+        return
+      }
+      profile = newProfile
+    }
+
+    const role = profile.role.toLowerCase()
+    
+    setCurrentUser({ ...profile, role })
+    setRole(role)
+    const firstAllowed = NAV_ITEMS.find((n) => n.roles?.includes(role))?.key || 'dashboard'
     setActive(firstAllowed)
     setView('app')
   }
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
     setCurrentUser(null)
     setRole('employee')
     setView('auth')
@@ -4336,10 +4365,10 @@ function App() {
                 {active === 'assets' && <AssetsScreen role={role} assets={assets} categories={categories} onOpenAllocate={setAllocateAsset} onOpenRegister={() => setRegisterOpen(true)} />}
                 {active === 'allocations' && <AllocationsScreen assets={assets} onOpenAllocate={setAllocateAsset} onOpenGenericAllocate={() => setGenericAllocateOpen(true)} transfers={transfers} onApproveTransfer={approveTransfer} onRejectTransfer={rejectTransfer} onReturnAsset={setReturnAsset} />}
                 {active === 'bookings' && <BookingsScreen bookings={bookings} assets={assets} onBook={handleAddBooking} />}
-                {active === 'maintenance' && <MaintenanceScreen tickets={tickets} onMoveTicket={onMoveTicket} onRaise={() => setMaintOpen(true)} role={role} />}
+                {active === 'maintenance' && <MaintenanceScreen tickets={role === 'employee' && currentUser ? tickets.filter(t => t.raisedById === currentUser.id) : tickets} onMoveTicket={onMoveTicket} onRaise={() => setMaintOpen(true)} role={role} />}
                 {active === 'audit' && <AuditScreen assets={assets} departments={departments} profiles={profiles} addLog={addLog} currentUser={currentUser} setAssets={setAssets} />}
                 {active === 'reports' && <ReportsScreen assets={assets} bookings={bookings} tickets={tickets} />}
-                {active === 'logs' && <LogsScreen activityLog={activityLog} user={currentUser} role={role} onMarkAllRead={() => setActivityLog(prev => prev.map(a => ({ ...a, unread: false })))} />}
+                {active === 'logs' && <LogsScreen currentUser={currentUser} role={role} />}
                 {active === 'org' && <OrgScreen onDataChanged={loadGlobalData} />}
               </motion.div>
             </AnimatePresence>
