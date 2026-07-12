@@ -713,7 +713,7 @@ function Sidebar({ active, onSelect, role, onClose }) {
   )
 }
 
-function TopBar({ role, theme, setTheme, onSearchOpen, onMenu, activeLabel, user, onLogout, onNotificationsOpen }) {
+function TopBar({ role, theme, setTheme, onSearchOpen, onMenu, activeLabel, user, onLogout, onNotificationsOpen, unreadCount = 0 }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const initials = user?.name?.split(' ').map((x) => x[0]).slice(0, 2).join('') || 'PS'
   const roleLabel = role === 'admin' ? 'Administrator' : 'Employee'
@@ -740,9 +740,11 @@ function TopBar({ role, theme, setTheme, onSearchOpen, onMenu, activeLabel, user
         <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="w-9 h-9 rounded-lg border border-border bg-background hover:bg-muted flex items-center justify-center">
           {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
         </button>
-        <button onClick={onNotificationsOpen} className="w-9 h-9 rounded-lg border border-border bg-background hover:bg-muted flex items-center justify-center relative">
+        <button onClick={onNotificationsOpen} className="w-9 h-9 rounded-lg border border-border bg-background hover:bg-muted flex items-center justify-center relative" title="Notifications">
           <Bell className="w-4 h-4" />
-          <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-rose-500" />
+          {unreadCount > 0 && (
+            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center px-1 shadow">{unreadCount > 9 ? '9+' : unreadCount}</span>
+          )}
         </button>
         <div className="ml-2 relative">
           <button onClick={() => setMenuOpen((v) => !v)} className="flex items-center gap-2 rounded-lg pl-2 pr-1 py-1 hover:bg-muted cursor-pointer">
@@ -1713,66 +1715,219 @@ function BookingsScreen({ bookings, onBook, assets }) {
 
 /* ---------------- Maintenance ---------------- */
 
-function MaintenanceScreen({ tickets, onMoveTicket, onRaise }) {
-  const [dragging, setDragging] = useState(null)
-  const move = (id, toStatus) => {
-    onMoveTicket(id, toStatus)
-  }
+function TicketCard({ t, onMove, role }) {
+  const [expanded, setExpanded] = useState(false)
+  const [assignOpen, setAssignOpen] = useState(false)
+  const prioKey = t.priority ? (t.priority.charAt(0).toUpperCase() + t.priority.slice(1).toLowerCase()) : 'Medium'
+
   return (
-    <div className="p-6 lg:p-8 space-y-6 max-w-[1600px] mx-auto">
+    <>
+      <motion.div
+        layout
+        draggable
+        onDragStart={(e) => e.dataTransfer.setData('ticketId', t.id)}
+        whileHover={{ y: -2 }}
+        className="cursor-grab active:cursor-grabbing rounded-xl border border-border bg-background shadow-sm hover:shadow-md transition-shadow overflow-hidden"
+      >
+        <div className="p-3">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="font-mono text-[10px] text-sky-500 font-semibold">{t.assetTag}</span>
+            <Badge className={`${PRIORITY_META[prioKey] ?? PRIORITY_META.Medium} border text-[10px] capitalize`}>{t.priority ?? 'Medium'}</Badge>
+          </div>
+          <div className="text-sm font-medium mb-0.5">{t.assetName}</div>
+          <div className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">{t.issue}</div>
+          {t.photoUrl && (
+            <img src={t.photoUrl} alt="issue" className="mt-2 w-full h-20 object-cover rounded-lg border border-border" />
+          )}
+          <div className="mt-2.5 flex items-center justify-between text-[10px] text-muted-foreground">
+            <span className="inline-flex items-center gap-1"><User className="w-3 h-3" />{t.raisedBy}</span>
+            <span>{t.date}</span>
+          </div>
+          {t.tech && <div className="mt-2 text-[10px] rounded-md bg-sky-500/10 text-sky-500 px-2 py-1 inline-block">🔧 Tech: {t.tech}</div>}
+        </div>
+
+        {/* Action buttons for Pending — admin/manager approves or rejects */}
+        {t.status === 'Pending' && (role === 'admin') && (
+          <div className="flex border-t border-border">
+            <button onClick={() => onMove(t.id, 'Approved')} className="flex-1 py-1.5 text-[11px] font-semibold text-emerald-600 hover:bg-emerald-500/10 transition-colors rounded-bl-xl flex items-center justify-center gap-1">
+              <CheckCircle2 className="w-3 h-3" /> Approve
+            </button>
+            <div className="w-px bg-border" />
+            <button onClick={() => onMove(t.id, 'Rejected')} className="flex-1 py-1.5 text-[11px] font-semibold text-rose-600 hover:bg-rose-500/10 transition-colors rounded-br-xl flex items-center justify-center gap-1">
+              <X className="w-3 h-3" /> Reject
+            </button>
+          </div>
+        )}
+
+        {/* Assign technician button for Approved */}
+        {t.status === 'Approved' && (role === 'admin') && (
+          <div className="flex border-t border-border">
+            <button onClick={() => setAssignOpen(true)} className="w-full py-1.5 text-[11px] font-semibold text-blue-600 hover:bg-blue-500/10 transition-colors rounded-b-xl flex items-center justify-center gap-1">
+              <UserPlus className="w-3 h-3" /> Assign Technician
+            </button>
+          </div>
+        )}
+
+        {/* Progress / Resolve buttons */}
+        {t.status === 'Technician Assigned' && (role === 'admin') && (
+          <div className="flex border-t border-border">
+            <button onClick={() => onMove(t.id, 'In Progress')} className="w-full py-1.5 text-[11px] font-semibold text-amber-600 hover:bg-amber-500/10 transition-colors rounded-b-xl flex items-center justify-center gap-1">
+              <Wrench className="w-3 h-3" /> Mark In Progress
+            </button>
+          </div>
+        )}
+        {t.status === 'In Progress' && (role === 'admin') && (
+          <div className="flex border-t border-border">
+            <button onClick={() => onMove(t.id, 'Resolved')} className="w-full py-1.5 text-[11px] font-semibold text-emerald-600 hover:bg-emerald-500/10 transition-colors rounded-b-xl flex items-center justify-center gap-1">
+              <CheckCircle2 className="w-3 h-3" /> Mark Resolved
+            </button>
+          </div>
+        )}
+
+        {/* Expand toggle */}
+        <button onClick={() => setExpanded(v => !v)} className="w-full px-3 py-1 text-[10px] text-muted-foreground hover:text-foreground border-t border-border flex items-center justify-center gap-1 transition-colors">
+          {expanded ? <ChevronLeft className="w-3 h-3 rotate-90" /> : <ChevronRight className="w-3 h-3 rotate-90" />}
+          {expanded ? 'Less' : 'Details'}
+        </button>
+
+        {expanded && (
+          <div className="px-3 pb-3 space-y-1.5 border-t border-border bg-muted/20">
+            <p className="text-[11px] font-medium text-muted-foreground mt-2">Full Issue</p>
+            <p className="text-xs leading-relaxed">{t.issue}</p>
+            {t.tech && <><p className="text-[11px] font-medium text-muted-foreground">Assigned To</p><p className="text-xs">{t.tech}</p></>}
+            <p className="text-[11px] font-medium text-muted-foreground">Raised By</p>
+            <p className="text-xs">{t.raisedBy} on {t.date}</p>
+          </div>
+        )}
+      </motion.div>
+
+      <AssignTechnicianDialog
+        open={assignOpen}
+        onClose={() => setAssignOpen(false)}
+        ticket={t}
+        onAssign={(tech) => {
+          onMove(t.id, 'Technician Assigned', tech)
+          setAssignOpen(false)
+        }}
+      />
+    </>
+  )
+}
+
+function AssignTechnicianDialog({ open, onClose, ticket, onAssign }) {
+  const [tech, setTech] = useState('')
+  useEffect(() => { if (open) setTech(ticket?.tech ?? '') }, [open, ticket])
+  if (!open) return null
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-sm rounded-2xl">
+        <DialogHeader>
+          <DialogTitle>Assign Technician</DialogTitle>
+          <DialogDescription>Enter the technician or vendor name for <span className="font-mono text-sky-500">{ticket?.assetTag}</span>.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3 py-2">
+          <label className="text-sm font-medium block">Technician / Vendor</label>
+          <Input value={tech} onChange={e => setTech(e.target.value)} placeholder="e.g. Apple Care, IT Support Team" className="h-10 rounded-lg" />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} className="rounded-lg">Cancel</Button>
+          <Button disabled={!tech.trim()} onClick={() => onAssign(tech)} className="bg-blue-500 hover:bg-blue-600 text-white rounded-lg">
+            <UserPlus className="w-4 h-4 mr-1.5" /> Assign
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function MaintenanceScreen({ tickets, onMoveTicket, onRaise, role = 'admin' }) {
+  const [filterPriority, setFilterPriority] = useState('all')
+  const [search, setSearch] = useState('')
+
+  const filtered = tickets.filter(t => {
+    const matchPriority = filterPriority === 'all' || (t.priority?.toLowerCase() === filterPriority)
+    const q = search.toLowerCase()
+    const matchSearch = !q || t.assetTag?.toLowerCase().includes(q) || t.assetName?.toLowerCase().includes(q) || t.issue?.toLowerCase().includes(q) || t.raisedBy?.toLowerCase().includes(q)
+    return matchPriority && matchSearch
+  })
+
+  const stats = {
+    pending: tickets.filter(t => t.status === 'Pending').length,
+    active: tickets.filter(t => ['Approved','Technician Assigned','In Progress'].includes(t.status)).length,
+    resolved: tickets.filter(t => t.status === 'Resolved').length,
+    rejected: tickets.filter(t => t.status === 'Rejected').length,
+  }
+
+  return (
+    <div className="p-6 lg:p-8 space-y-6 max-w-[1700px] mx-auto">
+      {/* Header */}
       <div className="flex items-end justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl lg:text-3xl font-bold tracking-tight">Maintenance Board</h1>
-          <p className="text-muted-foreground text-sm mt-1">Drag tickets across columns to progress workflows.</p>
+          <p className="text-muted-foreground text-sm mt-1">Full repair workflow — Pending → Approved / Rejected → Technician Assigned → In Progress → Resolved.</p>
         </div>
         <Button onClick={onRaise} className="bg-sky-500 hover:bg-sky-600 text-white rounded-lg h-10 active:scale-[0.98] transition-transform">
           <Plus className="w-4 h-4 mr-1.5" /> Raise Request
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
+      {/* Stats row */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { label: 'Pending', value: stats.pending, color: 'text-slate-600', bg: 'bg-slate-500/10' },
+          { label: 'Active', value: stats.active, color: 'text-amber-600', bg: 'bg-amber-500/10' },
+          { label: 'Resolved', value: stats.resolved, color: 'text-emerald-600', bg: 'bg-emerald-500/10' },
+          { label: 'Rejected', value: stats.rejected, color: 'text-rose-600', bg: 'bg-rose-500/10' },
+        ].map(s => (
+          <div key={s.label} className={`${s.bg} rounded-xl px-4 py-3 flex items-center gap-3`}>
+            <span className={`text-2xl font-bold ${s.color}`}>{s.value}</span>
+            <span className={`text-sm font-medium ${s.color}`}>{s.label}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Filters */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="relative flex-1 min-w-[180px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search tickets…" className="w-full pl-9 pr-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/30" />
+        </div>
+        <div className="flex gap-1">
+          {['all','high','medium','low'].map(p => (
+            <button key={p} onClick={() => setFilterPriority(p)} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all border capitalize ${
+              filterPriority === p ? 'bg-sky-500 text-white border-sky-500' : 'text-muted-foreground border-border hover:border-sky-500/40'
+            }`}>{p === 'all' ? 'All' : p}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Kanban board */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-4 overflow-x-auto">
         {KANBAN_COLS.map((col) => {
-          const items = tickets.filter((t) => t.status === col.key)
+          const items = filtered.filter((t) => t.status === col.key)
           return (
             <div
               key={col.key}
               onDragOver={(e) => e.preventDefault()}
-              onDrop={() => { if (dragging) { move(dragging, col.key); setDragging(null) } }}
+              onDrop={(e) => {
+                const id = e.dataTransfer.getData('ticketId')
+                if (id) onMoveTicket(id, col.key)
+              }}
               className="rounded-2xl border border-border bg-card/60 p-3 min-h-[300px] flex flex-col"
             >
               <div className="flex items-center justify-between mb-3 px-1">
                 <div className="flex items-center gap-2">
                   <span className={`w-2 h-2 rounded-full bg-current ${col.accent}`} />
-                  <span className="text-sm font-semibold">{col.label}</span>
+                  <span className="text-xs font-semibold">{col.label}</span>
                 </div>
                 <span className="text-xs text-muted-foreground bg-muted rounded-full px-2 py-0.5">{items.length}</span>
               </div>
               <div className="space-y-2 flex-1">
                 {items.map((t) => (
-                  <motion.div
-                    key={t.id}
-                    layout
-                    draggable
-                    onDragStart={() => setDragging(t.id)}
-                    onDragEnd={() => setDragging(null)}
-                    whileHover={{ y: -2 }}
-                    className="cursor-grab active:cursor-grabbing rounded-xl border border-border bg-background p-3 shadow-sm hover:shadow-md transition-shadow"
-                  >
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="font-mono text-[10px] text-sky-500 font-semibold">{t.assetTag}</span>
-                      <Badge className={PRIORITY_META[t.priority] + ' border text-[10px] capitalize'}>{t.priority}</Badge>
-                    </div>
-                    <div className="text-sm font-medium mb-1">{t.assetName}</div>
-                    <div className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">{t.issue}</div>
-                    <div className="mt-3 flex items-center justify-between text-[10px] text-muted-foreground">
-                      <span className="inline-flex items-center gap-1"><User className="w-3 h-3" />{t.raisedBy}</span>
-                      <span>{t.date}</span>
-                    </div>
-                    {t.tech && <div className="mt-2 text-[10px] rounded-md bg-sky-500/10 text-sky-500 px-2 py-1 inline-block">Tech: {t.tech}</div>}
-                  </motion.div>
+                  <TicketCard key={t.id} t={t} onMove={onMoveTicket} role={role} />
                 ))}
                 {items.length === 0 && (
-                  <div className="text-[11px] text-muted-foreground text-center py-6 border border-dashed border-border rounded-lg">Drop here</div>
+                  <div className="text-[11px] text-muted-foreground text-center py-8 border border-dashed border-border rounded-lg">Drop here</div>
                 )}
               </div>
             </div>
@@ -1785,106 +1940,518 @@ function MaintenanceScreen({ tickets, onMoveTicket, onRaise }) {
 
 /* ---------------- Audit ---------------- */
 
-function AuditScreen({ assets }) {
-  const [step, setStep] = useState(0)
-  const [results, setResults] = useState({})
+function AuditScreen({ assets, departments = [], profiles = [], addLog, currentUser, setAssets }) {
+  const [cycles, setCycles] = useState([
+    {
+      id: 'cycle-1',
+      name: 'Q1 Physical Inventory Audit',
+      scopeDeptId: 'all',
+      scopeDeptName: 'All Departments',
+      scopeLocation: 'HQ - Floor 3',
+      startDate: '2026-01-10',
+      endDate: '2026-01-20',
+      status: 'Closed',
+      auditorNames: ['Priya Shah', 'Rahul Iyer'],
+      stats: { total: 12, verified: 10, missing: 1, damaged: 1 },
+      records: [
+        { id: 'r1', assetTag: 'AF-0114', assetName: 'MacBook Pro 16"', status: 'Verified', notes: 'Good condition' },
+        { id: 'r2', assetTag: 'AF-0062', assetName: 'Epson EB-U05 Projector', status: 'Damaged', notes: 'Flickering display' },
+        { id: 'r3', assetTag: 'AF-0031', assetName: 'Dell XPS 15', status: 'Verified', notes: '' },
+        { id: 'r4', assetTag: 'AF-0301', assetName: 'Sony A7 IV', status: 'Missing', notes: 'Not found in HQ - Studio' }
+      ]
+    },
+    {
+      id: 'cycle-2',
+      name: 'IT Ops Department Checkpoint',
+      scopeDeptId: 'd4',
+      scopeDeptName: 'IT Ops',
+      scopeLocation: 'All Locations',
+      startDate: '2026-07-01',
+      endDate: '2026-07-15',
+      status: 'Open',
+      auditorNames: ['Priya Shah'],
+      stats: { total: 0, verified: 0, missing: 0, damaged: 0 },
+      records: []
+    }
+  ])
 
-  const auditList = assets.slice(0, 8)
-  const total = auditList.length
-  const done = Object.keys(results).length
-  const progress = (done / total) * 100
-  const setResult = (id, v) => setResults((r) => ({ ...r, [id]: v }))
+  const [activeCycleId, setActiveCycleId] = useState(null)
+  const [createOpen, setCreateOpen] = useState(false)
+  const [activeTab, setActiveTab] = useState('active') // 'active' | 'history'
+  const [results, setResults] = useState({}) // { [assetId]: { status: 'Verified'|'Missing'|'Damaged', notes: '' } }
+
+  // Create Cycle fields
+  const [newName, setNewName] = useState('')
+  const [newScopeDept, setNewScopeDept] = useState('all')
+  const [newScopeLoc, setNewScopeLoc] = useState('All Locations')
+  const [newStart, setNewStart] = useState('')
+  const [newEnd, setNewEnd] = useState('')
+  const [selectedAuditors, setSelectedAuditors] = useState([])
+
+  const currentCycle = cycles.find(c => c.id === activeCycleId)
+
+  // Filter assets matching the active cycle scope
+  const targetAssets = useMemo(() => {
+    if (!currentCycle) return []
+    return assets.filter(a => {
+      const matchDept = currentCycle.scopeDeptId === 'all' || 
+        (a.dept?.toLowerCase() === departments.find(d => d.id === currentCycle.scopeDeptId)?.name?.toLowerCase())
+      
+      const matchLoc = currentCycle.scopeLocation === 'All Locations' || 
+        (a.location?.toLowerCase().includes(currentCycle.scopeLocation?.toLowerCase()))
+      
+      return matchDept && matchLoc
+    })
+  }, [currentCycle, assets, departments])
+
+  const totalToAudit = targetAssets.length
+  const auditedCount = Object.keys(results).length
+  const progress = totalToAudit > 0 ? (auditedCount / totalToAudit) * 100 : 0
+
   const summary = useMemo(() => {
-    const verified = Object.values(results).filter((v) => v === 'verified').length
-    const missing = Object.values(results).filter((v) => v === 'missing').length
-    const damaged = Object.values(results).filter((v) => v === 'damaged').length
+    const verified = Object.values(results).filter((r) => r.status === 'Verified').length
+    const missing = Object.values(results).filter((r) => r.status === 'Missing').length
+    const damaged = Object.values(results).filter((r) => r.status === 'Damaged').length
     return { verified, missing, damaged }
   }, [results])
 
-  const chipClass = (v, active) => {
-    if (!active) return 'border-border text-muted-foreground hover:bg-muted'
-    if (v === 'verified') return 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
-    if (v === 'missing') return 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30'
-    return 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30'
+  const handleCreate = () => {
+    if (!newName.trim() || !newStart || !newEnd || selectedAuditors.length === 0) {
+      toast.error('Please fill in all required fields and select at least one auditor.')
+      return
+    }
+
+    const deptName = newScopeDept === 'all' ? 'All Departments' : (departments.find(d => d.id === newScopeDept)?.name ?? 'All Departments')
+    const newCycle = {
+      id: 'cycle-' + Date.now(),
+      name: newName,
+      scopeDeptId: newScopeDept,
+      scopeDeptName: deptName,
+      scopeLocation: newScopeLoc || 'All Locations',
+      startDate: newStart,
+      endDate: newEnd,
+      status: 'Open',
+      auditorNames: selectedAuditors,
+      stats: { total: 0, verified: 0, missing: 0, damaged: 0 },
+      records: []
+    }
+
+    setCycles(prev => [newCycle, ...prev])
+    setCreateOpen(false)
+    toast.success('Audit Cycle created successfully!')
+
+    // Reset inputs
+    setNewName('')
+    setNewScopeDept('all')
+    setNewScopeLoc('All Locations')
+    setNewStart('')
+    setNewEnd('')
+    setSelectedAuditors([])
+  }
+
+  const startAuditSession = (cycleId) => {
+    setActiveCycleId(cycleId)
+    // Pre-populate results if cycle has existing logs
+    setResults({})
+  }
+
+  const handleCloseCycle = () => {
+    if (auditedCount < totalToAudit) {
+      toast.error(`Please complete the audit for all ${totalToAudit} scoped assets before closing.`)
+      return
+    }
+
+    // Update asset statuses based on audit results
+    const updatedAssets = assets.map(asset => {
+      const auditRes = results[asset.id]
+      if (auditRes) {
+        if (auditRes.status === 'Missing') {
+          return { ...asset, status: 'Lost' }
+        } else if (auditRes.status === 'Damaged') {
+          return { ...asset, condition: 'Poor' }
+        }
+      }
+      return asset
+    })
+    setAssets(updatedAssets)
+
+    // Save cycle statistics and lock it
+    setCycles(prev => prev.map(c => {
+      if (c.id === activeCycleId) {
+        const records = targetAssets.map(a => ({
+          id: a.id,
+          assetTag: a.tag,
+          assetName: a.name,
+          status: results[a.id]?.status || 'Verified',
+          notes: results[a.id]?.notes || ''
+        }))
+        return {
+          ...c,
+          status: 'Closed',
+          stats: {
+            total: totalToAudit,
+            verified: summary.verified,
+            missing: summary.missing,
+            damaged: summary.damaged
+          },
+          records
+        }
+      }
+      return c
+    }))
+
+    addLog(
+      'audit',
+      `Audit Cycle closed: "${currentCycle.name}" — Verified: ${summary.verified}, Missing: ${summary.missing}, Damaged: ${summary.damaged}`,
+      currentUser?.name || 'Admin',
+      'all'
+    )
+
+    toast.success(`Audit cycle "${currentCycle.name}" locked and asset database updated!`)
+    setActiveCycleId(null)
+    setResults({})
   }
 
   return (
-    <div className="p-6 lg:p-8 space-y-6 max-w-[1000px] mx-auto">
-      <div>
-        <h1 className="text-2xl lg:text-3xl font-bold tracking-tight">Asset Audit — Q2 2025</h1>
-        <p className="text-muted-foreground text-sm mt-1">Physical verification wizard — mark each asset as verified, missing or damaged.</p>
+    <div className="p-6 lg:p-8 space-y-6 max-w-[1200px] mx-auto">
+      {/* Header */}
+      <div className="flex items-end justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl lg:text-3xl font-bold tracking-tight">Asset Audit Center</h1>
+          <p className="text-muted-foreground text-sm mt-1">Designate verification scopes, assign auditors, and resolve inventory discrepancies.</p>
+        </div>
+        {!activeCycleId && (
+          <Button onClick={() => setCreateOpen(true)} className="bg-sky-500 hover:bg-sky-600 text-white rounded-lg h-10 active:scale-[0.98] transition-all shadow-md shadow-sky-500/10">
+            <Plus className="w-4 h-4 mr-1.5" /> Start Audit Cycle
+          </Button>
+        )}
       </div>
 
-      <Card className="rounded-2xl border-border p-6 bg-card">
-        <div className="mb-4 flex items-center gap-3">
-          <div className="flex-1">
-            <div className="flex justify-between text-xs mb-1.5">
-              <span className="text-muted-foreground">{done} of {total} verified</span>
-              <span className="font-semibold">{Math.round(progress)}%</span>
+      {activeCycleId ? (
+        /* Perform Audit Session Workspace */
+        <div className="space-y-6">
+          <Card className="rounded-2xl border-border p-6 bg-card space-y-4">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-sky-500 tracking-wider">Active Verification Session</span>
+                <h2 className="text-xl font-bold mt-0.5">{currentCycle.name}</h2>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Scope: <strong className="text-foreground">{currentCycle.scopeDeptName}</strong> | Location: <strong className="text-foreground">{currentCycle.scopeLocation}</strong>
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setActiveCycleId(null)} className="rounded-lg h-9 text-xs">
+                  <ChevronLeft className="w-3.5 h-3.5 mr-1" /> Exit Session
+                </Button>
+                <Button onClick={handleCloseCycle} disabled={auditedCount < totalToAudit} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg h-9 text-xs">
+                  <Check className="w-3.5 h-3.5 mr-1" /> Close & Lock Audit
+                </Button>
+              </div>
             </div>
-            <Progress value={progress} className="h-1.5" />
-          </div>
-        </div>
 
-        {step === 0 ? (
-          <div className="space-y-2">
-            {auditList.map((a) => {
-              const res = results[a.id]
+            <div className="border-t border-border pt-4">
+              <div className="flex justify-between text-xs mb-1.5 font-medium">
+                <span className="text-muted-foreground">Progress: {auditedCount} of {totalToAudit} items checked</span>
+                <span>{Math.round(progress)}%</span>
+              </div>
+              <Progress value={progress} className="h-2 rounded-full" />
+            </div>
+
+            {/* Discrepancy Live Panel */}
+            <div className="grid grid-cols-3 gap-3 pt-2">
+              <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3 text-center">
+                <div className="text-xl font-bold text-emerald-600 dark:text-emerald-400">{summary.verified}</div>
+                <div className="text-[10px] text-muted-foreground mt-0.5">Verified</div>
+              </div>
+              <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-center">
+                <div className="text-xl font-bold text-amber-600 dark:text-amber-400">{summary.damaged}</div>
+                <div className="text-[10px] text-muted-foreground mt-0.5">Damaged</div>
+              </div>
+              <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-3 text-center">
+                <div className="text-xl font-bold text-rose-600 dark:text-rose-400">{summary.missing}</div>
+                <div className="text-[10px] text-muted-foreground mt-0.5">Missing</div>
+              </div>
+            </div>
+          </Card>
+
+          {/* Audit Verification List */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {targetAssets.map((asset) => {
+              const res = results[asset.id]?.status
+              const notes = results[asset.id]?.notes || ''
               return (
-                <div key={a.id} className="rounded-xl border border-border p-3 flex items-center gap-3 hover:bg-muted/30 transition-colors">
-                  <div className="w-9 h-9 rounded-lg bg-sky-500/10 text-sky-500 flex items-center justify-center shrink-0">
-                    <Package className="w-4 h-4" />
+                <Card key={asset.id} className="rounded-2xl border border-border bg-card p-4 space-y-4 hover:shadow-md transition-shadow">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h4 className="font-semibold text-sm">{asset.name}</h4>
+                      <p className="font-mono text-[10px] text-sky-500 mt-0.5">{asset.tag}</p>
+                      <p className="text-[11px] text-muted-foreground mt-1">Loc: {asset.location} | Serial: {asset.serial || 'N/A'}</p>
+                    </div>
+                    <Badge variant="outline" className="text-[10px] capitalize bg-muted">{asset.status}</Badge>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium truncate">{a.name}</div>
-                    <div className="text-xs text-muted-foreground"><span className="font-mono text-sky-500">{a.tag}</span> • {a.location}</div>
-                  </div>
-                  <div className="flex gap-1">
-                    {['verified', 'missing', 'damaged'].map((v) => (
-                      <button key={v} onClick={() => setResult(a.id, v)} className={`px-2.5 py-1.5 rounded-md text-[11px] font-medium capitalize border transition-all ${chipClass(v, res === v)}`}>
-                        {v}
+
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { key: 'Verified', label: 'Verified', color: 'border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/5', activeColor: 'bg-emerald-500 text-white border-emerald-500' },
+                      { key: 'Damaged', label: 'Damaged', color: 'border-amber-500/30 text-amber-600 hover:bg-amber-500/5', activeColor: 'bg-amber-500 text-white border-amber-500' },
+                      { key: 'Missing', label: 'Missing', color: 'border-rose-500/30 text-rose-600 hover:bg-rose-500/5', activeColor: 'bg-rose-500 text-white border-rose-500' }
+                    ].map(btn => (
+                      <button
+                        key={btn.key}
+                        onClick={() => setResults(prev => ({
+                          ...prev,
+                          [asset.id]: { status: btn.key, notes: prev[asset.id]?.notes || '' }
+                        }))}
+                        className={`py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                          res === btn.key ? btn.activeColor : btn.color
+                        }`}
+                      >
+                        {btn.label}
                       </button>
                     ))}
                   </div>
-                </div>
+
+                  {res === 'Damaged' && (
+                    <Input
+                      placeholder="Describe damage details..."
+                      value={notes}
+                      onChange={(e) => setResults(prev => ({
+                        ...prev,
+                        [asset.id]: { status: 'Damaged', notes: e.target.value }
+                      }))}
+                      className="h-8 text-xs rounded-lg"
+                    />
+                  )}
+                  {res === 'Missing' && (
+                    <Input
+                      placeholder="Describe last known location..."
+                      value={notes}
+                      onChange={(e) => setResults(prev => ({
+                        ...prev,
+                        [asset.id]: { status: 'Missing', notes: e.target.value }
+                      }))}
+                      className="h-8 text-xs rounded-lg"
+                    />
+                  )}
+                </Card>
               )
             })}
-            <div className="flex justify-end pt-2">
-              <Button onClick={() => setStep(1)} disabled={done < total} className="bg-sky-500 hover:bg-sky-600 text-white rounded-lg">
-                Generate Discrepancy Report <ChevronRight className="w-4 h-4 ml-1" />
-              </Button>
+            {totalToAudit === 0 && (
+              <div className="col-span-2 text-center py-12 border border-dashed border-border rounded-2xl bg-card">
+                <Package className="w-10 h-10 mx-auto text-muted-foreground" />
+                <h3 className="font-semibold mt-3">No Scoped Assets Found</h3>
+                <p className="text-xs text-muted-foreground mt-1">There are no assets matching the department/location scope of this cycle.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        /* Audit Dashboard */
+        <div className="space-y-6">
+          <div className="flex border-b border-border">
+            {[
+              { key: 'active', label: 'Active Cycles' },
+              { key: 'history', label: 'Audit History' }
+            ].map(t => (
+              <button
+                key={t.key}
+                onClick={() => setActiveTab(t.key)}
+                className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-all ${
+                  activeTab === t.key ? 'border-sky-500 text-sky-500' : 'border-transparent text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-1 gap-4">
+            {cycles.filter(c => activeTab === 'active' ? c.status === 'Open' : c.status === 'Closed').map(c => (
+              <Card key={c.id} className="rounded-2xl border border-border bg-card p-5 space-y-4">
+                <div className="flex items-start justify-between flex-wrap gap-2">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-bold text-base">{c.name}</h3>
+                      <Badge className={c.status === 'Open' ? 'bg-sky-500/10 text-sky-600' : 'bg-slate-500/10 text-slate-600'}>
+                        {c.status}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1.5">
+                      Scope: <strong>{c.scopeDeptName}</strong> | Loc: <strong>{c.scopeLocation}</strong>
+                    </p>
+                    <p className="text-[11px] text-muted-foreground mt-1">
+                      Timeline: {c.startDate} to {c.endDate}
+                    </p>
+                  </div>
+                  {c.status === 'Open' ? (
+                    <Button onClick={() => startAuditSession(c.id)} className="bg-sky-500 hover:bg-sky-600 text-white rounded-lg text-xs h-9">
+                      <ClipboardCheck className="w-3.5 h-3.5 mr-1" /> Perform Audit
+                    </Button>
+                  ) : (
+                    <div className="text-right">
+                      <span className="text-[10px] text-muted-foreground font-medium block">Audit locked</span>
+                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Closed Cycle</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Discrepancy / Audit Breakdown Statistics */}
+                <div className="grid grid-cols-4 gap-3 bg-muted/20 border border-border rounded-xl p-3.5">
+                  <div className="text-center">
+                    <span className="text-xs text-muted-foreground">Scoped Items</span>
+                    <span className="font-bold text-base block mt-0.5">{c.status === 'Open' ? assets.filter(a => c.scopeDeptId === 'all' || a.dept?.toLowerCase() === departments.find(d => d.id === c.scopeDeptId)?.name?.toLowerCase()).length : c.stats.total}</span>
+                  </div>
+                  <div className="text-center border-l border-border">
+                    <span className="text-xs text-emerald-600 dark:text-emerald-400">Verified</span>
+                    <span className="font-bold text-base block mt-0.5 text-emerald-600 dark:text-emerald-400">{c.stats.verified}</span>
+                  </div>
+                  <div className="text-center border-l border-border">
+                    <span className="text-xs text-amber-600 dark:text-amber-400">Damaged</span>
+                    <span className="font-bold text-base block mt-0.5 text-amber-600 dark:text-amber-400">{c.stats.damaged}</span>
+                  </div>
+                  <div className="text-center border-l border-border">
+                    <span className="text-xs text-rose-600 dark:text-rose-400">Missing</span>
+                    <span className="font-bold text-base block mt-0.5 text-rose-600 dark:text-rose-400">{c.stats.missing}</span>
+                  </div>
+                </div>
+
+                {/* Audit assignments list */}
+                <div className="text-xs text-muted-foreground">
+                  Assigned Auditors: <strong className="text-foreground">{c.auditorNames.join(', ')}</strong>
+                </div>
+
+                {/* Closed Cycle Detailed Log */}
+                {c.status === 'Closed' && c.records && c.records.length > 0 && (
+                  <div className="border-t border-border pt-3 space-y-2">
+                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">Discrepancy Details</span>
+                    <div className="max-h-[150px] overflow-y-auto space-y-1.5 pr-1">
+                      {c.records.map((rec, idx) => (
+                        <div key={idx} className="flex items-center justify-between text-xs py-1 border-b border-border/40 last:border-0">
+                          <div>
+                            <span className="font-medium">{rec.assetName}</span>
+                            <span className="font-mono text-[10px] text-sky-500 ml-1.5">({rec.assetTag})</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                              rec.status === 'Verified' ? 'bg-emerald-500/10 text-emerald-600' :
+                              rec.status === 'Damaged' ? 'bg-amber-500/10 text-amber-600' :
+                              'bg-rose-500/10 text-rose-600'
+                            }`}>{rec.status}</span>
+                            {rec.notes && <span className="text-[10px] text-muted-foreground italic font-light">"{rec.notes}"</span>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </Card>
+            ))}
+
+            {cycles.filter(c => activeTab === 'active' ? c.status === 'Open' : c.status === 'Closed').length === 0 && (
+              <div className="text-center py-16 border border-dashed border-border rounded-2xl bg-card">
+                <ClipboardCheck className="w-10 h-10 mx-auto text-muted-foreground animate-pulse" />
+                <h3 className="font-semibold mt-3">No Cycles Found</h3>
+                <p className="text-xs text-muted-foreground mt-1">There are no audit cycles listed in this section.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Start Audit Cycle Dialog */}
+      <Dialog open={createOpen} onOpenChange={(o) => !o && setCreateOpen(false)}>
+        <DialogContent className="max-w-lg rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><ClipboardCheck className="w-5 h-5 text-sky-500" /> Start New Audit Cycle</DialogTitle>
+            <DialogDescription>Define the audit scope, schedule, and assign verify agents.</DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Audit Name *</label>
+              <Input
+                placeholder="e.g. Q2 Floor 3 Hardware Audit"
+                value={newName}
+                onChange={e => setNewName(e.target.value)}
+                className="h-10 rounded-lg"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">Scope Department</label>
+                <Select value={newScopeDept} onValueChange={setNewScopeDept}>
+                  <SelectTrigger className="h-10 rounded-lg"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Departments</SelectItem>
+                    {departments.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">Scope Location / Keywords</label>
+                <Input
+                  placeholder="e.g. Floor 3, Remote"
+                  value={newScopeLoc}
+                  onChange={e => setNewScopeLoc(e.target.value)}
+                  className="h-10 rounded-lg"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">Start Date *</label>
+                <Input
+                  type="date"
+                  value={newStart}
+                  onChange={e => setNewStart(e.target.value)}
+                  className="h-10 rounded-lg"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">End Date *</label>
+                <Input
+                  type="date"
+                  value={newEnd}
+                  onChange={e => setNewEnd(e.target.value)}
+                  className="h-10 rounded-lg"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Assign Auditors *</label>
+              <div className="max-h-[120px] overflow-y-auto border border-border rounded-lg p-2.5 space-y-2">
+                {profiles.map(p => {
+                  const checked = selectedAuditors.includes(p.name)
+                  return (
+                    <label key={p.id} className="flex items-center gap-2 cursor-pointer hover:bg-muted/30 p-1.5 rounded-md transition-colors text-xs font-medium">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => {
+                          if (checked) setSelectedAuditors(prev => prev.filter(name => name !== p.name))
+                          else setSelectedAuditors(prev => [...prev, p.name])
+                        }}
+                        className="rounded border-border text-sky-500 w-4 h-4"
+                      />
+                      <span>{p.name} ({p.role})</span>
+                    </label>
+                  )
+                })}
+              </div>
             </div>
           </div>
-        ) : (
-          <div className="space-y-5">
-            <div className="text-center py-4">
-              <div className="w-14 h-14 mx-auto rounded-2xl bg-emerald-500/15 text-emerald-600 flex items-center justify-center mb-3">
-                <ClipboardCheck className="w-7 h-7" />
-              </div>
-              <h2 className="text-xl font-bold">Discrepancy Report Ready</h2>
-              <p className="text-sm text-muted-foreground">Auto-generated summary of your audit checkpoint.</p>
-            </div>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 text-center">
-                <div className="text-3xl font-bold text-emerald-600">{summary.verified}</div>
-                <div className="text-xs text-muted-foreground mt-1">Verified</div>
-              </div>
-              <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-center">
-                <div className="text-3xl font-bold text-amber-600">{summary.damaged}</div>
-                <div className="text-xs text-muted-foreground mt-1">Damaged</div>
-              </div>
-              <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-4 text-center">
-                <div className="text-3xl font-bold text-rose-600">{summary.missing}</div>
-                <div className="text-xs text-muted-foreground mt-1">Missing</div>
-              </div>
-            </div>
-            <div className="flex justify-between">
-              <Button variant="outline" onClick={() => setStep(0)} className="rounded-lg"><ChevronLeft className="w-4 h-4 mr-1" /> Back</Button>
-              <Button onClick={() => toast.success('Report exported to PDF')} className="bg-sky-500 hover:bg-sky-600 text-white rounded-lg">Export PDF</Button>
-            </div>
-          </div>
-        )}
-      </Card>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateOpen(false)} className="rounded-lg">Cancel</Button>
+            <Button onClick={handleCreate} className="bg-sky-500 hover:bg-sky-600 text-white rounded-lg">
+              <ClipboardCheck className="w-4 h-4 mr-1.5" /> Start Cycle
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -1951,15 +2518,6 @@ function ReportsScreen() {
               </div>
               <div className="text-xs"><span className="font-semibold text-rose-500">Unused {a.days}+ days</span></div>
             </div>
-          ))}
-        </div>
-      </Card>
-    </div>
-  )
-}
-
-/* ---------------- Logs ---------------- */
-
 function timeAgo(dateStr) {
   if (!dateStr) return 'Unknown time'
   const diff = Date.now() - new Date(dateStr).getTime()
@@ -1974,108 +2532,298 @@ function timeAgo(dateStr) {
   return new Date(dateStr).toLocaleDateString()
 }
 
-function LogsScreen() {
+const TYPE_CONFIG = {
+  allocation: { label: 'Asset Assigned', tone: 'emerald', icon: 'user-plus' },
+  booking:    { label: 'Booking',         tone: 'indigo',  icon: 'calendar' },
+  maintenance:{ label: 'Maintenance',     tone: 'amber',   icon: 'wrench' },
+  transfer:   { label: 'Transfer',        tone: 'amber',   icon: 'arrow-left-right' },
+  alert:      { label: 'Alert',           tone: 'rose',    icon: 'alert-triangle' },
+  audit:      { label: 'Audit',           tone: 'neutral', icon: 'clipboard-check' },
+  return:     { label: 'Return',          tone: 'neutral', icon: 'undo-2' },
+}
+
+function LogsScreen({ activityLog = [], user, role, onMarkAllRead }) {
   const [filter, setFilter] = useState('all')
-  const [activities, setActivities] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+  const [readIds, setReadIds] = useState(new Set(
+    (activityLog || []).filter(a => a && !a.unread).map(a => a.id).filter(Boolean)
+  ))
+  const [dbLogs, setDbLogs] = useState([])
+  const [loadingDb, setLoadingDb] = useState(false)
+
+  const markRead = (id) => {
+    if (!id) return
+    setReadIds(prev => {
+      const next = new Set(prev)
+      next.add(id)
+      return next
+    })
+  }
+
+  const markAllRead = () => {
+    const allIds = (activityLog || []).map(a => a?.id).filter(Boolean)
+    setReadIds(new Set(allIds))
+    onMarkAllRead?.()
+  }
+
+  const isUnread = (a) => a && a.unread && !readIds.has(a.id)
 
   useEffect(() => {
     async function fetchLogs() {
-      setLoading(true)
-      const [allocRes, transferRes, bookingRes] = await Promise.all([
-        supabase.from('allocations').select('created_at, asset:assets(asset_tag, name), employee:profiles!allocations_assigned_to_employee_id_fkey(name)').order('created_at', { ascending: false }).limit(20),
-        supabase.from('transfer_requests').select('created_at, status, asset:assets(asset_tag, name), from_emp:profiles!transfer_requests_from_employee_id_fkey(name), to_emp:profiles!transfer_requests_to_employee_id_fkey(name)').eq('status', 'Approved').order('created_at', { ascending: false }).limit(20),
-        supabase.from('bookings').select('created_at, start_time, end_time, asset:assets(asset_tag, name), user:profiles(name)').in('status', ['Upcoming', 'Ongoing']).order('created_at', { ascending: false }).limit(20)
-      ])
+      const isPlaceholder = !process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('your-supabase-project')
+      if (isPlaceholder) return
 
-      let merged = []
-      
-      if (allocRes.data) {
-        merged.push(...allocRes.data.map(a => ({
-          id: `alloc-${a.created_at}-${Math.random()}`,
-          type: 'allocation',
-          text: `Asset ${a.asset?.asset_tag} (${a.asset?.name}) allocated to ${a.employee?.name || 'Department'}`,
-          time: timeAgo(a.created_at),
-          ts: new Date(a.created_at).getTime(),
-          icon: 'user-plus'
-        })))
+      setLoadingDb(true)
+      try {
+        const [allocRes, transferRes, bookingRes] = await Promise.all([
+          supabase.from('allocations').select('created_at, asset:assets(asset_tag, name), employee:profiles!allocations_assigned_to_employee_id_fkey(name)').order('created_at', { ascending: false }).limit(20),
+          supabase.from('transfer_requests').select('created_at, status, asset:assets(asset_tag, name), from_emp:profiles!transfer_requests_from_employee_id_fkey(name), to_emp:profiles!transfer_requests_to_employee_id_fkey(name)').eq('status', 'Approved').order('created_at', { ascending: false }).limit(20),
+          supabase.from('bookings').select('created_at, start_time, end_time, asset:assets(asset_tag, name), user:profiles(name)').in('status', ['Upcoming', 'Ongoing']).order('created_at', { ascending: false }).limit(20)
+        ])
+
+        let merged = []
+        if (allocRes.data) {
+          merged.push(...allocRes.data.map(a => ({
+            id: `alloc-${a.created_at}-${Math.random()}`,
+            type: 'allocation',
+            text: `Asset ${a.asset?.asset_tag} (${a.asset?.name}) allocated to ${a.employee?.name || 'Department'}`,
+            time: timeAgo(a.created_at),
+            ts: new Date(a.created_at).getTime(),
+            icon: 'user-plus',
+            unread: false
+          })))
+        }
+        if (transferRes.data) {
+          merged.push(...transferRes.data.map(t => ({
+            id: `tx-${t.created_at}-${Math.random()}`,
+            type: 'transfer',
+            text: `Transfer approved: ${t.asset?.asset_tag} from ${t.from_emp?.name} to ${t.to_emp?.name}`,
+            time: timeAgo(t.created_at),
+            ts: new Date(t.created_at).getTime(),
+            icon: 'arrow-left-right',
+            unread: false
+          })))
+        }
+        if (bookingRes.data) {
+          merged.push(...bookingRes.data.map(b => ({
+            id: `bk-${b.created_at}-${Math.random()}`,
+            type: 'booking',
+            text: `Resource ${b.asset?.asset_tag} booked by ${b.user?.name}`,
+            time: timeAgo(b.created_at),
+            ts: new Date(b.created_at).getTime(),
+            icon: 'calendar',
+            unread: false
+          })))
+        }
+        setDbLogs(merged)
+      } catch (err) {
+        console.warn('Failed to fetch dynamic DB logs:', err)
+      } finally {
+        setLoadingDb(false)
       }
-      if (transferRes.data) {
-        merged.push(...transferRes.data.map(t => ({
-          id: `tx-${t.created_at}-${Math.random()}`,
-          type: 'transfer',
-          text: `Transfer approved: ${t.asset?.asset_tag} from ${t.from_emp?.name} to ${t.to_emp?.name}`,
-          time: timeAgo(t.created_at),
-          ts: new Date(t.created_at).getTime(),
-          icon: 'arrow-left-right'
-        })))
-      }
-      if (bookingRes.data) {
-        merged.push(...bookingRes.data.map(b => ({
-          id: `bk-${b.created_at}-${Math.random()}`,
-          type: 'booking',
-          text: `Resource ${b.asset?.asset_tag} booked by ${b.user?.name}`,
-          time: timeAgo(b.created_at),
-          ts: new Date(b.created_at).getTime(),
-          icon: 'calendar'
-        })))
-      }
-      
-      merged.sort((a, b) => b.ts - a.ts)
-      setActivities(merged)
-      setLoading(false)
     }
     fetchLogs()
   }, [])
 
-  const filtered = activities.filter((a) => {
-    if (filter === 'all') return true
-    if (filter === 'alerts') return a.type === 'alert'
-    if (filter === 'approvals') return a.type === 'transfer'
-    if (filter === 'bookings') return a.type === 'booking'
-    return true
-  })
+  const allLogs = useMemo(() => {
+    const merged = [...activityLog]
+    dbLogs.forEach(dl => {
+      if (!merged.some(ml => ml.text === dl.text)) {
+        merged.push(dl)
+      }
+    })
+    return merged
+  }, [activityLog, dbLogs])
 
-  const tabs = [{ key: 'all', label: 'All' }, { key: 'alerts', label: 'Alerts' }, { key: 'approvals', label: 'Approvals' }, { key: 'bookings', label: 'Bookings' }]
-  return (
-    <div className="p-6 lg:p-8 space-y-6 max-w-[1000px] mx-auto">
-      <div>
-        <h1 className="text-2xl lg:text-3xl font-bold tracking-tight">Activity Logs</h1>
-        <p className="text-muted-foreground text-sm mt-1">A complete audit trail of every action across your workspace.</p>
-      </div>
-      <div className="flex gap-1 bg-muted/50 border border-border rounded-lg p-1 w-fit">
-        {tabs.map((t) => (
-          <button key={t.key} onClick={() => setFilter(t.key)} className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${filter === t.key ? 'bg-background shadow-sm' : 'text-muted-foreground'}`}>
-            {t.label}
-          </button>
-        ))}
-      </div>
-      <Card className="rounded-2xl border-border p-5 bg-card min-h-[400px]">
-        {loading ? (
-           <div className="text-sm text-muted-foreground py-8 text-center">Loading activity...</div>
-        ) : (
-        <div className="space-y-1">
-          {filtered.map((a, i) => {
-            const Icon = ICON_MAP[a.icon] ?? Sparkles
-            const tone = a.type === 'alert' ? 'rose' : a.type === 'maintenance' ? 'amber' : a.type === 'booking' ? 'indigo' : a.type === 'transfer' ? 'amber' : 'emerald'
-            return (
-              <motion.div key={a.id} initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.03 }} className="flex gap-3 py-3 border-b border-border last:border-0">
-                <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${TONE_STYLES[tone]}`}>
-                  <Icon className="w-4 h-4" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm">{a.text}</div>
-                  <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-2 capitalize"><span>{a.type}</span> • <span>{a.time}</span></div>
-                </div>
-              </motion.div>
-            )
-          })}
-          {filtered.length === 0 && <div className="text-sm text-muted-foreground py-8 text-center">No activity matches.</div>}
+  try {
+    // Role-based filter: employees only see their own notifications
+    const roleFiltered = (role === 'admin' || role === 'Asset Manager')
+      ? (allLogs || []).filter(Boolean)
+      : (allLogs || []).filter(Boolean).filter(a => a.recipient === user?.name || a.recipient === 'all' || a.actor === user?.name)
+
+    const typeFiltered = roleFiltered.filter((a) => {
+      if (!a) return false
+      if (filter === 'all') return true
+      if (filter === 'alerts') return a.type === 'alert'
+      if (filter === 'bookings') return a.type === 'booking'
+      if (filter === 'maintenance') return a.type === 'maintenance'
+      if (filter === 'transfers') return a.type === 'transfer'
+      if (filter === 'allocations') return a.type === 'allocation'
+      if (filter === 'audit') return a.type === 'audit'
+      if (filter === 'returns') return a.type === 'return'
+      return true
+    })
+
+    const finalFiltered = search.trim()
+      ? typeFiltered.filter(a => 
+          (a.text || '').toLowerCase().includes(search.toLowerCase()) || 
+          (a.actor || '').toLowerCase().includes(search.toLowerCase()) || 
+          (a.recipient || '').toLowerCase().includes(search.toLowerCase())
+        )
+      : typeFiltered
+
+    const unreadCount = roleFiltered.filter(a => isUnread(a)).length
+
+    const TABS = [
+      { key: 'all',          label: 'All',         count: roleFiltered.length },
+      { key: 'alerts',       label: '🔴 Alerts',   count: roleFiltered.filter(a => a?.type === 'alert').length },
+      { key: 'allocations',  label: 'Assignments', count: roleFiltered.filter(a => a?.type === 'allocation').length },
+      { key: 'bookings',     label: 'Bookings',    count: roleFiltered.filter(a => a?.type === 'booking').length },
+      { key: 'maintenance',  label: 'Maintenance', count: roleFiltered.filter(a => a?.type === 'maintenance').length },
+      { key: 'transfers',    label: 'Transfers',   count: roleFiltered.filter(a => a?.type === 'transfer').length },
+      { key: 'returns',      label: 'Returns',     count: roleFiltered.filter(a => a?.type === 'return').length },
+      { key: 'audit',        label: 'Audit',       count: roleFiltered.filter(a => a?.type === 'audit').length },
+    ]
+
+    return (
+      <div className="p-6 lg:p-8 space-y-6 max-w-[1000px] mx-auto">
+        {/* Header */}
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <h1 className="text-2xl lg:text-3xl font-bold tracking-tight">Activity Logs & Notifications</h1>
+            <p className="text-muted-foreground text-sm mt-1">Full audit trail — every action across your workspace, filtered for your role.</p>
+          </div>
+          {unreadCount > 0 && (
+            <button onClick={markAllRead} className="text-xs font-semibold text-sky-500 hover:text-sky-600 border border-sky-500/30 rounded-lg px-3 py-1.5 hover:bg-sky-500/5 transition-colors">
+              Mark all as read ({unreadCount})
+            </button>
+          )}
         </div>
+
+        {/* Unread banner */}
+        {unreadCount > 0 && (
+          <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-3 rounded-xl border border-sky-500/20 bg-sky-500/5 px-4 py-3">
+            <div className="w-8 h-8 rounded-lg bg-sky-500/15 flex items-center justify-center">
+              <Bell className="w-4 h-4 text-sky-500" />
+            </div>
+            <span className="text-sm font-medium text-sky-700 dark:text-sky-300">
+              You have <strong>{unreadCount}</strong> unread notification{unreadCount > 1 ? 's' : ''}
+            </span>
+          </motion.div>
         )}
-      </Card>
-    </div>
-  )
+
+        {/* Search */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search by message, actor, or recipient…"
+            className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/30"
+          />
+          {search && (
+            <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+
+        {/* Filter tabs */}
+        <div className="flex gap-1 flex-wrap">
+          {TABS.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setFilter(t.key)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all border ${
+                filter === t.key
+                  ? 'bg-sky-500 text-white border-sky-500 shadow-sm shadow-sky-500/20'
+                  : 'text-muted-foreground border-border hover:border-sky-500/40 hover:text-foreground'
+              }`}
+            >
+              {t.label}
+              {t.count > 0 && (
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
+                  filter === t.key ? 'bg-white/20 text-white' : 'bg-muted text-muted-foreground'
+                }`}>{t.count}</span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Log list */}
+        <Card className="rounded-2xl border-border bg-card overflow-hidden">
+          <div className="divide-y divide-border">
+            {finalFiltered.map((a, i) => {
+              if (!a) return null
+              const cfg = TYPE_CONFIG[a.type] ?? TYPE_CONFIG.allocation
+              const Icon = ICON_MAP[a.icon] ?? ICON_MAP[cfg.icon] ?? Sparkles
+              const unread = isUnread(a)
+              return (
+                <motion.div
+                  key={a.id}
+                  initial={{ opacity: 0, x: -8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.025, duration: 0.22 }}
+                  onClick={() => markRead(a.id)}
+                  className={`flex gap-3 px-5 py-4 cursor-pointer hover:bg-muted/40 transition-colors ${
+                    unread ? 'bg-sky-500/[0.03] border-l-2 border-sky-500' : ''
+                  }`}
+                >
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${TONE_STYLES[cfg.tone]}`}>
+                    <Icon className="w-4 h-4" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className={`text-sm leading-snug ${unread ? 'font-semibold' : ''}`}>{a.text}</div>
+                      {unread && <span className="mt-1 w-2 h-2 rounded-full bg-sky-500 shrink-0" />}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1.5">
+                      <span className={`inline-flex items-center text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
+                        a.type === 'alert'       ? 'bg-rose-500/10 text-rose-600 border-rose-500/20 dark:text-rose-400' :
+                        a.type === 'maintenance' ? 'bg-amber-500/10 text-amber-600 border-amber-500/20 dark:text-amber-400' :
+                        a.type === 'booking'     ? 'bg-sky-500/10 text-sky-600 border-sky-500/20 dark:text-sky-400' :
+                        a.type === 'transfer'    ? 'bg-amber-500/10 text-amber-600 border-amber-500/20 dark:text-amber-400' :
+                        a.type === 'audit'       ? 'bg-slate-500/10 text-slate-600 border-slate-500/20 dark:text-slate-400' :
+                        a.type === 'return'      ? 'bg-slate-500/10 text-slate-600 border-slate-500/20 dark:text-slate-400' :
+                        'bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400'
+                      }`}>{cfg.label}</span>
+                      {a.actor && a.actor !== 'System' && (
+                        <span className="text-[11px] text-muted-foreground">
+                          by <span className="font-medium text-foreground">{a.actor}</span>
+                        </span>
+                      )}
+                      {a.actor === 'System' && <span className="text-[11px] text-muted-foreground">Automated</span>}
+                      <span className="text-[11px] text-muted-foreground">•</span>
+                      <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                        <Clock className="w-3 h-3" />{a.time}
+                      </span>
+                    </div>
+                  </div>
+                </motion.div>
+              )
+            })}
+            {finalFiltered.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <div className="w-14 h-14 rounded-2xl bg-muted flex items-center justify-center mb-3">
+                  <Bell className="w-6 h-6 text-muted-foreground" />
+                </div>
+                <p className="text-sm font-medium text-muted-foreground">No activity matches</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {search ? `No results for "${search}"` : 'Try a different filter'}
+                </p>
+              </div>
+            )}
+          </div>
+        </Card>
+
+        {finalFiltered.length > 0 && (
+          <p className="text-xs text-muted-foreground text-center">
+            Showing {finalFiltered.length} of {roleFiltered.length} events
+            {role === 'employee' ? ' (filtered to your activity)' : ''}
+          </p>
+        )}
+      </div>
+    )
+  } catch (renderError) {
+    console.error('LogsScreen Render Error caught:', renderError)
+    return (
+      <div className="p-8 text-center text-red-500 border border-red-500/20 rounded-2xl bg-red-500/5 max-w-[600px] mx-auto mt-10">
+        <h2 className="text-lg font-semibold mb-2">Something went wrong rendering notifications</h2>
+        <p className="text-xs font-mono bg-background p-4 rounded-lg border border-border overflow-x-auto text-left whitespace-pre-wrap">{renderError.stack || renderError.message}</p>
+        <button onClick={() => window.location.reload()} className="mt-4 px-4 py-2 bg-red-500 text-white rounded-lg text-sm font-semibold hover:bg-red-600">Reload Page</button>
+      </div>
+    )
+  }
 }
 
 /* ---------------- Org ---------------- */
@@ -2612,47 +3360,114 @@ function CategoryDialog({ open, onClose, onSave, cat }) {
 }
 
 function RaiseMaintenanceDialog({ open, onClose, assets, onRaise }) {
-  const [assetId, setAssetId] = useState(assets[0]?.id ?? '')
+  const [assetId, setAssetId] = useState('')
   const [issue, setIssue] = useState('')
   const [priority, setPriority] = useState('Medium')
-  useEffect(() => { if (open && assets[0]) setAssetId(assets[0].id) }, [open, assets])
+  const [photoUrl, setPhotoUrl] = useState('')
+  const [photoPreview, setPhotoPreview] = useState('')
+  const fileRef = useState(null)
+
+  useEffect(() => {
+    if (open) {
+      setAssetId(assets[0]?.id ?? '')
+      setIssue('')
+      setPriority('Medium')
+      setPhotoUrl('')
+      setPhotoPreview('')
+    }
+  }, [open, assets])
+
+  const handlePhoto = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => { setPhotoPreview(ev.target.result); setPhotoUrl(ev.target.result) }
+    reader.readAsDataURL(file)
+  }
+
   const submit = () => {
     if (!issue.trim()) { toast.error('Please describe the issue.'); return }
+    if (!assetId) { toast.error('Please select an asset.'); return }
     const asset = assets.find((a) => a.id === assetId)
-    onRaise(asset, issue, priority)
-    setIssue(''); onClose()
+    onRaise(asset, issue, priority, photoUrl)
+    onClose()
   }
+
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-md rounded-2xl">
+      <DialogContent className="max-w-lg rounded-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Raise Maintenance Request</DialogTitle>
-          <DialogDescription>Your request will land in the Pending column.</DialogDescription>
+          <DialogTitle className="flex items-center gap-2"><Wrench className="w-5 h-5 text-amber-500" /> Raise Maintenance Request</DialogTitle>
+          <DialogDescription>Describe the issue and set priority. Your request goes to Pending for Asset Manager approval.</DialogDescription>
         </DialogHeader>
-        <div className="space-y-3">
+        <div className="space-y-4 py-1">
+          {/* Asset selection */}
           <div>
-            <label className="text-sm font-medium mb-1.5 block">Asset</label>
+            <label className="text-sm font-medium mb-1.5 block">Asset *</label>
             <Select value={assetId} onValueChange={setAssetId}>
-              <SelectTrigger className="h-10 rounded-lg"><SelectValue /></SelectTrigger>
-              <SelectContent>{assets.map((a) => <SelectItem key={a.id} value={a.id}>{a.tag} — {a.name}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-          <div><label className="text-sm font-medium mb-1.5 block">Issue</label><Textarea value={issue} onChange={(e) => setIssue(e.target.value)} rows={3} placeholder="Describe the fault…" className="rounded-lg" /></div>
-          <div>
-            <label className="text-sm font-medium mb-1.5 block">Priority</label>
-            <Select value={priority} onValueChange={setPriority}>
-              <SelectTrigger className="h-10 rounded-lg"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-10 rounded-lg"><SelectValue placeholder="Select an asset…" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="High">High</SelectItem>
-                <SelectItem value="Medium">Medium</SelectItem>
-                <SelectItem value="Low">Low</SelectItem>
+                {assets.map((a) => <SelectItem key={a.id} value={a.id}>{a.tag} — {a.name}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
+
+          {/* Issue description */}
+          <div>
+            <label className="text-sm font-medium mb-1.5 block">Issue Description *</label>
+            <Textarea
+              value={issue}
+              onChange={(e) => setIssue(e.target.value)}
+              rows={4}
+              placeholder="Describe the fault in detail — e.g. 'Screen flickering at startup, battery drains in 2 hours'"
+              className="rounded-lg resize-none"
+            />
+          </div>
+
+          {/* Priority */}
+          <div>
+            <label className="text-sm font-medium mb-1.5 block">Priority</label>
+            <div className="flex gap-2">
+              {['High','Medium','Low'].map(p => (
+                <button
+                  key={p}
+                  onClick={() => setPriority(p)}
+                  className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-all ${
+                    priority === p
+                      ? p === 'High' ? 'bg-rose-500 text-white border-rose-500'
+                        : p === 'Medium' ? 'bg-amber-500 text-white border-amber-500'
+                        : 'bg-slate-500 text-white border-slate-500'
+                      : 'border-border text-muted-foreground hover:border-sky-500/40'
+                  }`}
+                >{p}</button>
+              ))}
+            </div>
+          </div>
+
+          {/* Photo attachment */}
+          <div>
+            <label className="text-sm font-medium mb-1.5 block">Attach Photo (Optional)</label>
+            <label className="flex flex-col items-center justify-center gap-2 h-28 rounded-xl border-2 border-dashed border-border bg-muted/20 cursor-pointer hover:border-sky-500/40 hover:bg-sky-500/5 transition-colors">
+              <input type="file" accept="image/*" onChange={handlePhoto} className="hidden" />
+              {photoPreview ? (
+                <img src={photoPreview} alt="preview" className="h-full w-full object-cover rounded-xl" />
+              ) : (
+                <>
+                  <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
+                    <Plus className="w-4 h-4 text-muted-foreground" />
+                  </div>
+                  <p className="text-xs text-muted-foreground">Click to attach a photo of the issue</p>
+                </>
+              )}
+            </label>
+          </div>
         </div>
-        <DialogFooter>
+
+        <DialogFooter className="gap-2">
           <Button variant="outline" onClick={onClose} className="rounded-lg">Cancel</Button>
-          <Button onClick={submit} className="bg-sky-500 hover:bg-sky-600 text-white rounded-lg">Submit</Button>
+          <Button onClick={submit} className="bg-amber-500 hover:bg-amber-600 text-white rounded-lg">
+            <Wrench className="w-4 h-4 mr-1.5" /> Submit Request
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -2751,6 +3566,7 @@ function App() {
   const [assets, setAssets] = useState([])
   const [categories, setCategories] = useState([])
   const [profiles, setProfiles] = useState([])
+  const [departments, setDepartments] = useState([])
   const [bookings, setBookings] = useState([])
   const [tickets, setTickets] = useState([])
   const [transfers, setTransfers] = useState([])
@@ -2762,85 +3578,199 @@ function App() {
   const [registerOpen, setRegisterOpen] = useState(false)
   const [maintOpen, setMaintOpen] = useState(false)
 
+  // Activity log — seeded from mock data, extended live by user actions
+  const [activityLog, setActivityLog] = useState([...ACTIVITY])
+  const addLog = (type, text, actor, recipient = 'all') => {
+    const iconMap = { allocation: 'user-plus', booking: 'calendar', maintenance: 'wrench', transfer: 'arrow-left-right', alert: 'alert-triangle', audit: 'clipboard-check', return: 'undo-2' }
+    setActivityLog(prev => [{
+      id: `live-${Date.now()}`,
+      type,
+      text,
+      time: 'Just now',
+      icon: iconMap[type] ?? 'user-plus',
+      actor: actor ?? 'Unknown',
+      recipient,
+      category: type,
+      unread: true,
+    }, ...prev])
+  }
+
   const loadGlobalData = async () => {
     setLoadingApp(true)
-    const [assetsRes, catRes, allocRes, profRes, maintRes, transRes, bookingsRes] = await Promise.all([
-      supabase.from('assets').select('*, category:asset_categories(name)').order('created_at', { ascending: false }),
-      supabase.from('asset_categories').select('*').order('name'),
-      supabase.from('allocations').select('*, employee:profiles!allocations_assigned_to_employee_id_fkey(name, department:departments!profiles_department_id_fkey(name))').eq('status', 'Active'),
-      supabase.from('profiles').select('*, department:departments!profiles_department_id_fkey(name)').eq('status', 'Active').order('name'),
-      supabase.from('maintenance_requests').select('*, asset:assets(name, asset_tag), profile:profiles(name)').order('created_at', { ascending: false }),
-      supabase.from('transfer_requests').select('*, from:profiles!transfer_requests_from_employee_id_fkey(name), to:profiles!transfer_requests_to_employee_id_fkey(name), asset:assets(name, asset_tag)').eq('status', 'Pending').order('created_at', { ascending: false }),
-      supabase.from('bookings').select('*, profile:profiles!bookings_booked_by_fkey(name), asset:assets!bookings_asset_id_fkey(asset_tag, name)')
-    ])
-    
-    setCategories(catRes.data || [])
-    setProfiles(profRes.data || [])
-    
-    const mappedTickets = (maintRes.data || []).map(t => ({
-      id: t.id,
-      assetTag: t.asset?.asset_tag,
-      assetName: t.asset?.name,
-      issue: t.issue_description,
-      priority: t.priority,
-      status: t.status,
-      raisedBy: t.profile?.name || 'Unknown',
-      date: new Date(t.created_at).toISOString().slice(0, 10),
-      tech: t.assigned_technician
-    }))
-    setTickets(mappedTickets)
-
-    const mappedTransfers = (transRes.data || []).map(t => ({
-      id: t.id,
-      assetId: t.asset_id,
-      tag: t.asset?.asset_tag,
-      name: t.asset?.name,
-      from: t.from?.name || 'Unknown',
-      to: t.to?.name || 'Unknown',
-      fromId: t.from_employee_id,
-      toId: t.to_employee_id,
-      date: new Date(t.created_at).toISOString().slice(0, 10)
-    }))
-    setTransfers(mappedTransfers)
-
-    const mappedBookings = (bookingsRes.data || []).map(b => {
-      const startD = new Date(b.start_time)
-      const endD = new Date(b.end_time)
-      const startH = startD.getHours() + (startD.getMinutes() / 60)
-      const endH = endD.getHours() + (endD.getMinutes() / 60)
-      return {
-        id: b.id,
-        assetTag: b.asset?.asset_tag,
-        assetName: b.asset?.name,
-        startDate: startD,
-        start: startH,
-        end: endH,
-        user: b.profile?.name || 'Unknown',
-        title: 'Booking',
-        status: b.status
+    try {
+      const isPlaceholder = !process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('your-supabase-project')
+      if (isPlaceholder) {
+        throw new Error('Supabase using placeholder credentials')
       }
-    })
-    setBookings(mappedBookings)
 
-    const mappedAssets = (assetsRes.data || []).map(a => {
-      const activeAlloc = (allocRes.data || []).find(al => al.asset_id === a.id)
-      return {
-        ...a,
-        tag: a.asset_tag,
-        serial: a.serial_number,
-        acquisitionDate: a.acquisition_date,
-        acquisitionCost: a.acquisition_cost,
-        category: a.category?.name || 'Unknown',
-        allocatedTo: activeAlloc ? activeAlloc.employee?.name : null,
-        allocatedToId: activeAlloc ? activeAlloc.assigned_to_employee_id : null,
-        dept: activeAlloc ? activeAlloc.employee?.department?.name : null,
-        since: activeAlloc ? activeAlloc.allocation_date : null,
-        expectedReturnDate: activeAlloc ? activeAlloc.expected_return_date : null,
-        status: activeAlloc ? 'Allocated' : a.status
+      const [assetsRes, catRes, allocRes, profRes, maintRes, transRes, deptRes, bookingsRes] = await Promise.all([
+        supabase.from('assets').select('*, category:asset_categories(name)').order('created_at', { ascending: false }),
+        supabase.from('asset_categories').select('*').order('name'),
+        supabase.from('allocations').select('*, employee:profiles!allocations_assigned_to_employee_id_fkey(name, department:departments!profiles_department_id_fkey(name))').eq('status', 'Active'),
+        supabase.from('profiles').select('*, department:departments!profiles_department_id_fkey(name)').eq('status', 'Active').order('name'),
+        supabase.from('maintenance_requests').select('*, asset:assets(name, asset_tag), profile:profiles(name)').order('created_at', { ascending: false }),
+        supabase.from('transfer_requests').select('*, from:profiles!transfer_requests_from_employee_id_fkey(name), to:profiles!transfer_requests_to_employee_id_fkey(name), asset:assets(name, asset_tag)').eq('status', 'Pending').order('created_at', { ascending: false }),
+        supabase.from('departments').select('*').order('name'),
+        supabase.from('bookings').select('*, profile:profiles!bookings_booked_by_fkey(name), asset:assets!bookings_asset_id_fkey(asset_tag, name)')
+      ])
+
+      if (assetsRes.error || catRes.error || allocRes.error || profRes.error || maintRes.error || transRes.error || deptRes.error || bookingsRes.error) {
+        throw new Error('Supabase query error')
       }
-    })
-    setAssets(mappedAssets)
-    setLoadingApp(false)
+
+      setCategories(catRes.data || [])
+      setProfiles(profRes.data || [])
+      setDepartments(deptRes.data || [])
+
+      const mappedTickets = (maintRes.data || []).map(t => ({
+        id: t.id,
+        assetId: t.asset_id,
+        assetTag: t.asset?.asset_tag,
+        assetName: t.asset?.name,
+        issue: t.issue_description,
+        priority: t.priority,
+        status: t.status,
+        raisedBy: t.profile?.name || 'Unknown',
+        date: new Date(t.created_at).toISOString().slice(0, 10),
+        tech: t.assigned_technician
+      }))
+      setTickets(mappedTickets)
+
+      const mappedTransfers = (transRes.data || []).map(t => ({
+        id: t.id,
+        assetId: t.asset_id,
+        tag: t.asset?.asset_tag,
+        name: t.asset?.name,
+        from: t.from?.name || 'Unknown',
+        to: t.to?.name || 'Unknown',
+        fromId: t.from_employee_id,
+        toId: t.to_employee_id,
+        date: new Date(t.created_at).toISOString().slice(0, 10)
+      }))
+      setTransfers(mappedTransfers)
+
+      const mappedBookings = (bookingsRes.data || []).map(b => {
+        const startD = new Date(b.start_time)
+        const endD = new Date(b.end_time)
+        const startH = startD.getHours() + (startD.getMinutes() / 60)
+        const endH = endD.getHours() + (endD.getMinutes() / 60)
+        return {
+          id: b.id,
+          assetTag: b.asset?.asset_tag,
+          assetName: b.asset?.name,
+          startDate: startD,
+          start: startH,
+          end: endH,
+          user: b.profile?.name || 'Unknown',
+          title: 'Booking',
+          status: b.status
+        }
+      })
+      setBookings(mappedBookings)
+
+      const mappedAssets = (assetsRes.data || []).map(a => {
+        const activeAlloc = (allocRes.data || []).find(al => al.asset_id === a.id)
+        return {
+          ...a,
+          tag: a.asset_tag,
+          serial: a.serial_number,
+          acquisitionDate: a.acquisition_date,
+          acquisitionCost: a.acquisition_cost,
+          category: a.category?.name || 'Unknown',
+          allocatedTo: activeAlloc ? activeAlloc.employee?.name : null,
+          allocatedToId: activeAlloc ? activeAlloc.assigned_to_employee_id : null,
+          dept: activeAlloc ? activeAlloc.employee?.department?.name : null,
+          since: activeAlloc ? activeAlloc.allocation_date : null,
+          expectedReturnDate: activeAlloc ? activeAlloc.expected_return_date : null,
+          status: activeAlloc ? 'Allocated' : (a.status === 'Allocated' ? 'Available' : a.status)
+        }
+      })
+      setAssets(mappedAssets)
+    } catch (err) {
+      console.warn('loadGlobalData falling back to local mock data:', err.message)
+      
+      // Fallback categories
+      const mockCategories = CATEGORIES.map((c, idx) => ({ id: `cat-${idx}`, name: c }))
+      setCategories(mockCategories)
+
+      // Fallback departments
+      setDepartments(DEPARTMENTS || [])
+
+      // Fallback profiles
+      const mockProfiles = EMPLOYEES.map(e => ({
+        id: e.id,
+        name: e.name,
+        email: `${e.name.toLowerCase().replace(' ', '')}@assetflow.com`,
+        role: e.role,
+        department: { name: e.dept }
+      }))
+      setProfiles(mockProfiles)
+
+      // Fallback tickets
+      const mapStatus = (s) => {
+        if (s === 'pending') return 'Pending'
+        if (s === 'approved') return 'Approved'
+        if (s === 'assigned') return 'Technician Assigned'
+        if (s === 'in_progress') return 'In Progress'
+        if (s === 'resolved') return 'Resolved'
+        if (s === 'rejected') return 'Rejected'
+        return s || 'Pending'
+      }
+      const mockTickets = SEED_MAINTENANCE.map(m => {
+        const matchingAsset = SEED_ASSETS.find(a => a.tag === m.assetTag)
+        return {
+          id: m.id,
+          assetId: matchingAsset?.id || 'a2',
+          assetTag: m.assetTag,
+          assetName: m.assetName,
+          issue: m.issue,
+          priority: m.priority ? (m.priority.charAt(0).toUpperCase() + m.priority.slice(1).toLowerCase()) : 'Medium',
+          status: mapStatus(m.status),
+          raisedBy: m.raisedBy,
+          date: m.date,
+          tech: m.tech
+        }
+      })
+      setTickets(mockTickets)
+
+      // Fallback transfers
+      setTransfers([])
+
+      // Fallback bookings
+      const mockBookings = BOOKINGS.map(b => {
+        const startD = new Date()
+        return {
+          id: b.id,
+          assetTag: b.assetTag,
+          assetName: b.assetName,
+          startDate: startD,
+          start: b.start,
+          end: b.end,
+          user: b.user,
+          title: b.title,
+          status: 'Upcoming'
+        }
+      })
+      setBookings(mockBookings)
+
+      // Fallback assets
+      const mockAssets = SEED_ASSETS.map(a => ({
+        id: a.id,
+        tag: a.tag,
+        name: a.name,
+        category: a.category,
+        status: a.status,
+        location: a.location,
+        serial: a.serial,
+        allocatedTo: a.allocatedTo,
+        dept: a.dept,
+        since: a.since,
+        expectedReturnDate: a.expectedReturn
+      }))
+      setAssets(mockAssets)
+    } finally {
+      setLoadingApp(false)
+    }
   }
 
   useEffect(() => {
@@ -2917,6 +3847,8 @@ function App() {
     if (error) return toast.error(error.message)
     // Update asset status
     await supabase.from('assets').update({ status: 'Allocated' }).eq('id', asset.id)
+    const assignee = profiles.find(p => p.id === profileId)
+    addLog('allocation', `${asset.name ?? asset.tag} (${asset.tag}) assigned to ${assignee?.name ?? 'employee'}`, currentUser?.name, assignee?.name)
     toast.success(`Allocated ${asset.tag}`)
     loadGlobalData()
   }
@@ -2930,6 +3862,8 @@ function App() {
       status: 'Pending'
     }])
     if (error) return toast.error(error.message)
+    const toProfile = profiles.find(p => p.id === toProfileId)
+    addLog('transfer', `Transfer request raised — ${asset.name} (${asset.tag}): ${asset.allocatedTo ?? 'Unassigned'} → ${toProfile?.name ?? 'employee'} (pending approval)`, currentUser?.name, 'Priya Shah')
     toast.success('Transfer Request Raised')
     loadGlobalData()
   }
@@ -2937,7 +3871,7 @@ function App() {
   const approveTransfer = async (transfer) => {
     const { error: updErr } = await supabase.from('transfer_requests').update({ status: 'Approved' }).eq('id', transfer.id)
     if (updErr) return toast.error(updErr.message)
-    
+    addLog('transfer', `Transfer approved — ${transfer.name} (${transfer.tag}): ${transfer.from} → ${transfer.to}`, currentUser?.name, transfer.to)
     // Perform the actual allocation move
     const asset = assets.find(a => a.id === transfer.assetId)
     if (asset) await doAllocate(asset, transfer.toId)
@@ -2946,6 +3880,7 @@ function App() {
   const rejectTransfer = async (transfer) => {
     const { error } = await supabase.from('transfer_requests').update({ status: 'Rejected' }).eq('id', transfer.id)
     if (error) return toast.error(error.message)
+    addLog('transfer', `Transfer rejected — ${transfer.name} (${transfer.tag}): ${transfer.from} → ${transfer.to}`, currentUser?.name, transfer.from)
     toast.success('Transfer Rejected')
     loadGlobalData()
   }
@@ -2953,30 +3888,74 @@ function App() {
   const handleReturnAsset = async (asset, checkInNotes) => {
     const { error: updErr } = await supabase.from('allocations').update({ status: 'Returned', return_date: new Date().toISOString(), check_in_notes: checkInNotes }).eq('asset_id', asset.id).eq('status', 'Active')
     if (updErr) return toast.error(updErr.message)
-    
     await supabase.from('assets').update({ status: 'Available' }).eq('id', asset.id)
+    addLog('return', `Asset returned — ${asset.name} (${asset.tag}) checked in${checkInNotes ? ': ' + checkInNotes : ''}`, asset.allocatedTo ?? currentUser?.name, 'all')
     toast.success(`Returned ${asset.tag}`)
     loadGlobalData()
   }
 
-  const raiseMaintenance = async (asset, issue, priority) => {
+  const raiseMaintenance = async (asset, issue, priority, photoUrl) => {
     const { error } = await supabase.from('maintenance_requests').insert([{
       asset_id: asset.id,
       raised_by: profiles[0]?.id,
       issue_description: issue,
       priority,
-      status: 'Pending'
+      status: 'Pending',
+      photo_url: photoUrl || null
     }])
-    if (error) return toast.error(error.message)
-    await supabase.from('assets').update({ status: 'Under Maintenance' }).eq('id', asset.id)
-    toast.success('Maintenance request submitted')
-    loadGlobalData()
+    if (error) {
+      // Fallback: add to local tickets state when no Supabase
+      const newTicket = {
+        id: 'local-' + Date.now(),
+        assetTag: asset.tag,
+        assetName: asset.name,
+        assetId: asset.id,
+        issue,
+        priority,
+        status: 'Pending',
+        raisedBy: currentUser?.name ?? 'You',
+        date: new Date().toLocaleDateString(),
+        photoUrl: photoUrl || null,
+        tech: null,
+      }
+      setTickets(prev => [newTicket, ...prev])
+    } else {
+      loadGlobalData()
+    }
+    addLog('maintenance', `Maintenance request raised — ${asset.name} (${asset.tag}): ${issue} [${priority} priority]`, currentUser?.name, 'admin')
+    toast.success('Maintenance request submitted — awaiting approval')
   }
 
-  const onMoveTicket = async (id, toStatus) => {
-    setTickets((prev) => prev.map((t) => (t.id === id ? { ...t, status: toStatus } : t)))
+  const onMoveTicket = async (id, toStatus, techName) => {
+    const ticket = tickets.find(t => t.id === id)
+    // Optimistic UI update
+    setTickets((prev) => prev.map((t) => (t.id === id ? { ...t, status: toStatus, tech: techName ?? t.tech } : t)))
+
+    // Asset status side-effects
+    if (ticket?.assetId) {
+      if (toStatus === 'Approved') {
+        // Mark asset Under Maintenance once approved
+        await supabase.from('assets').update({ status: 'Under Maintenance' }).eq('id', ticket.assetId)
+        setAssets(prev => prev.map(a => a.id === ticket.assetId ? { ...a, status: 'maintenance' } : a))
+      } else if (toStatus === 'Resolved') {
+        // Return asset to Available on resolution
+        await supabase.from('assets').update({ status: 'Available' }).eq('id', ticket.assetId)
+        setAssets(prev => prev.map(a => a.id === ticket.assetId ? { ...a, status: 'available' } : a))
+      } else if (toStatus === 'Rejected') {
+        // If rejected keep asset Available (it was never set Under Maintenance)
+      }
+    }
+
+    const statusLabel = toStatus === 'Approved' ? 'approved' : toStatus === 'In Progress' ? 'in progress' : toStatus === 'Resolved' ? 'resolved' : toStatus === 'Rejected' ? 'rejected' : toStatus.toLowerCase()
+    if (ticket) addLog('maintenance', `Maintenance ${statusLabel} — ${ticket.assetName} (${ticket.assetTag}): ${ticket.issue}${techName ? ' → Tech: ' + techName : ''}`, currentUser?.name, ticket.raisedBy)
     toast.success('Ticket moved to ' + toStatus)
-    await supabase.from('maintenance_requests').update({ status: toStatus }).eq('id', id)
+
+    // Persist to Supabase
+    const update = { status: toStatus }
+    if (techName) update.assigned_technician = techName
+    if (!id.startsWith('local-')) {
+      await supabase.from('maintenance_requests').update(update).eq('id', id)
+    }
   }
 
   const handleLogin = (user) => {
@@ -3021,6 +4000,7 @@ function App() {
             user={currentUser}
             onLogout={handleLogout}
             onNotificationsOpen={() => setActive('logs')}
+            unreadCount={activityLog.filter(a => a.unread).length}
           />
           <main className="flex-1 overflow-x-hidden">
             <AnimatePresence mode="wait">
@@ -3033,10 +4013,10 @@ function App() {
                 {active === 'assets' && <AssetsScreen role={role} assets={assets} categories={categories} onOpenAllocate={setAllocateAsset} onOpenRegister={() => setRegisterOpen(true)} />}
                 {active === 'allocations' && <AllocationsScreen assets={assets} onOpenAllocate={setAllocateAsset} onOpenGenericAllocate={() => setGenericAllocateOpen(true)} transfers={transfers} onApproveTransfer={approveTransfer} onRejectTransfer={rejectTransfer} onReturnAsset={setReturnAsset} />}
                 {active === 'bookings' && <BookingsScreen bookings={bookings} assets={assets} onBook={handleAddBooking} />}
-                {active === 'maintenance' && <MaintenanceScreen tickets={tickets} onMoveTicket={onMoveTicket} onRaise={() => setMaintOpen(true)} />}
-                {active === 'audit' && <AuditScreen assets={assets} />}
+                {active === 'maintenance' && <MaintenanceScreen tickets={tickets} onMoveTicket={onMoveTicket} onRaise={() => setMaintOpen(true)} role={role} />}
+                {active === 'audit' && <AuditScreen assets={assets} departments={departments} profiles={profiles} addLog={addLog} currentUser={currentUser} setAssets={setAssets} />}
                 {active === 'reports' && <ReportsScreen />}
-                {active === 'logs' && <LogsScreen />}
+                {active === 'logs' && <LogsScreen activityLog={activityLog} user={currentUser} role={role} onMarkAllRead={() => setActivityLog(prev => prev.map(a => ({ ...a, unread: false })))} />}
                 {active === 'org' && <OrgScreen onDataChanged={loadGlobalData} />}
               </motion.div>
             </AnimatePresence>
