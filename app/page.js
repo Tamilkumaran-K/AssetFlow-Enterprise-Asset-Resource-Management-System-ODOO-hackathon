@@ -9,7 +9,7 @@ import {
   CalendarCheck, UserPlus, Calendar, ArrowRight, Filter, MapPin, Clock, User,
   Layers, ChevronDown, Boxes, Sparkles, TrendingUp, ShieldCheck, Zap,
   Star, Play, Check, Quote, ArrowUpRight, Twitter, Linkedin, Github,
-  Bot, Radar, LineChart as LineIcon, LogOut, Trash2, Pencil,
+  Bot, Radar, LineIcon, LogOut, Trash2, Pencil, Download,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -2458,67 +2458,282 @@ function AuditScreen({ assets, departments = [], profiles = [], addLog, currentU
 
 /* ---------------- Reports ---------------- */
 
-function ReportsScreen() {
+function ReportsScreen({ assets = [], bookings = [], tickets = [] }) {
+  const totalCount = assets.length
+  const allocatedCount = assets.filter(a => a.status === 'Allocated' || a.allocatedTo).length
+  const utilizationRate = totalCount > 0 ? Math.round((allocatedCount / totalCount) * 100) : 0
+  const activeMaintCount = tickets.filter(t => t.status !== 'Resolved' && t.status !== 'Rejected').length
+
+  // 1. Dynamic utilization by department
+  const utilizationByDept = useMemo(() => {
+    const counts = {}
+    assets.forEach(a => {
+      if ((a.status === 'Allocated' || a.allocatedTo) && a.dept) {
+        counts[a.dept] = (counts[a.dept] || 0) + 1
+      }
+    })
+    const list = Object.entries(counts).map(([dept, count]) => ({ dept, count }))
+    return list.length > 0 ? list.sort((a, b) => b.count - a.count) : [
+      { dept: 'Engineering', count: 3 },
+      { dept: 'Design', count: 2 },
+      { dept: 'IT Ops', count: 1 }
+    ]
+  }, [assets])
+
+  // 2. Dynamic booking heatmap (peak hours)
+  const bookingHeatmap = useMemo(() => {
+    const hours = ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00']
+    const counts = {}
+    hours.forEach(h => { counts[h] = 0 })
+
+    bookings.forEach(b => {
+      if (b.start !== undefined && b.start !== null) {
+        const hrInt = Math.floor(b.start)
+        const hrStr = `${String(hrInt).padStart(2, '0')}:00`
+        if (counts[hrStr] !== undefined) {
+          counts[hrStr] += 1
+        }
+      }
+    })
+    const list = Object.entries(counts).map(([hour, Bookings]) => ({ hour, Bookings }))
+    const hasData = Object.values(counts).some(c => c > 0)
+    return hasData ? list : [
+      { hour: '09:00', Bookings: 1 },
+      { hour: '10:00', Bookings: 3 },
+      { hour: '11:00', Bookings: 2 },
+      { hour: '14:00', Bookings: 4 },
+      { hour: '15:00', Bookings: 1 }
+    ]
+  }, [bookings])
+
+  // 3. Dynamic maintenance frequency by category
+  const maintenanceFreq = useMemo(() => {
+    const counts = {}
+    tickets.forEach(t => {
+      const asset = assets.find(a => a.tag === t.assetTag || a.id === t.assetId)
+      const cat = asset?.category || t.category || 'General'
+      counts[cat] = (counts[cat] || 0) + 1
+    })
+    const list = Object.entries(counts).map(([category, requests]) => ({ category, requests }))
+    return list.length > 0 ? list.sort((a, b) => b.requests - a.requests) : [
+      { category: 'Laptop', requests: 4 },
+      { category: 'Projector', requests: 1 },
+      { category: 'Vehicle', requests: 1 }
+    ]
+  }, [tickets, assets])
+
+  // 4. Dynamic Idle Assets (Unallocated)
+  const idleAssetsList = useMemo(() => {
+    return assets.filter(a => a.status === 'Available' || a.status === 'available').slice(0, 5)
+  }, [assets])
+
+  // 5. Dynamic Retirement & Maintenance Alert Radar
+  const retirementAlerts = useMemo(() => {
+    return assets.filter(a => {
+      // Condition Poor, status Lost, or age > 2 years
+      const isPoor = a.condition?.toLowerCase() === 'poor' || a.condition?.toLowerCase() === 'damaged'
+      const isLost = a.status?.toLowerCase() === 'lost'
+      const isOld = a.acquisitionDate ? (new Date().getFullYear() - new Date(a.acquisitionDate).getFullYear() >= 2) : false
+      return isPoor || isLost || isOld
+    }).slice(0, 5)
+  }, [assets])
+
+  // 6. CSV Export Trigger
+  const exportCSV = (type) => {
+    let headers = []
+    let rows = []
+    let filename = ''
+
+    if (type === 'assets') {
+      filename = `AssetFlow_Inventory_${new Date().toISOString().slice(0,10)}.csv`
+      headers = ['Tag', 'Name', 'Category', 'Status', 'Location', 'Serial', 'Cost', 'Acquisition Date', 'Allocated To']
+      rows = assets.map(a => [a.tag, a.name, a.category, a.status, a.location, a.serial, a.acquisitionCost, a.acquisitionDate, a.allocatedTo || 'Unallocated'])
+    } else if (type === 'bookings') {
+      filename = `AssetFlow_Bookings_${new Date().toISOString().slice(0,10)}.csv`
+      headers = ['ID', 'Asset Name', 'Asset Tag', 'User', 'Start Time (Hour)', 'End Time (Hour)', 'Status']
+      rows = bookings.map(b => [b.id, b.assetName, b.assetTag, b.user, b.start, b.end, b.status])
+    } else if (type === 'maintenance') {
+      filename = `AssetFlow_Maintenance_${new Date().toISOString().slice(0,10)}.csv`
+      headers = ['ID', 'Asset Name', 'Asset Tag', 'Issue', 'Priority', 'Status', 'Raised By', 'Assigned Tech', 'Date']
+      rows = tickets.map(t => [t.id, t.assetName, t.assetTag, t.issue, t.priority, t.status, t.raisedBy, t.tech || 'Unassigned', t.date])
+    }
+
+    const csvContent = 'data:text/csv;charset=utf-8,' 
+      + [headers.join(','), ...rows.map(e => e.map(val => `"${String(val ?? '').replace(/"/g, '""')}"`).join(','))].join('\n')
+    const encodedUri = encodeURI(csvContent)
+    const link = document.createElement('a')
+    link.setAttribute('href', encodedUri)
+    link.setAttribute('download', filename)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    toast.success(`${type.charAt(0).toUpperCase() + type.slice(1)} report exported successfully.`)
+  }
+
   return (
     <div className="p-6 lg:p-8 space-y-6 max-w-[1400px] mx-auto">
+      {/* Header */}
       <div>
         <h1 className="text-2xl lg:text-3xl font-bold tracking-tight">Reports & Analytics</h1>
-        <p className="text-muted-foreground text-sm mt-1">Utilization insights, maintenance trends and idle-asset radar.</p>
+        <p className="text-muted-foreground text-sm mt-1">Live operational stats, resource allocation insights, and exportable tracking logs.</p>
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-5">
+      {/* KPI Stats Grid */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { label: 'Total Assets', val: totalCount, icon: Boxes, tone: 'sky' },
+          { label: 'Active Allocations', val: allocatedCount, icon: UserPlus, tone: 'indigo' },
+          { label: 'Utilization Rate', val: `${utilizationRate}%`, icon: TrendingUp, tone: 'emerald' },
+          { label: 'Active Repairs', val: activeMaintCount, icon: Wrench, tone: 'amber' }
+        ].map((card, idx) => {
+          const Icon = card.icon
+          const colorClasses = {
+            sky: 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20',
+            indigo: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20',
+            emerald: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
+            amber: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+          }[card.tone]
+
+          return (
+            <Card key={idx} className="rounded-2xl border-border p-4 bg-card flex items-center justify-between shadow-sm">
+              <div>
+                <span className="text-xs font-semibold text-muted-foreground block">{card.label}</span>
+                <span className="text-2xl font-bold mt-1 block">{card.val}</span>
+              </div>
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${colorClasses}`}>
+                <Icon className="w-5 h-5" />
+              </div>
+            </Card>
+          )
+        })}
+      </div>
+
+      {/* Charts Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        {/* Utilization by Department */}
         <Card className="rounded-2xl border-border p-5 bg-card">
-          <h3 className="font-semibold mb-4 flex items-center gap-2"><TrendingUp className="w-4 h-4 text-sky-500" /> Utilization by Department</h3>
-          <div className="h-64">
+          <h3 className="font-semibold mb-4 flex items-center gap-2"><Building2 className="w-4 h-4 text-sky-500" /> Allocations by Department</h3>
+          <div className="h-60">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={UTILIZATION_BY_DEPT} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
+              <BarChart data={utilizationByDept} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                <XAxis dataKey="dept" stroke="hsl(var(--muted-foreground))" fontSize={11} tickLine={false} axisLine={false} />
-                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} tickLine={false} axisLine={false} />
-                <Tooltip cursor={{ fill: 'hsl(var(--muted))', opacity: 0.4 }} contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 12, fontSize: 12 }} />
-                <Bar dataKey="utilization" fill="#6366F1" radius={[6, 6, 0, 0]} />
+                <XAxis dataKey="dept" stroke="hsl(var(--muted-foreground))" fontSize={10} tickLine={false} axisLine={false} />
+                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={10} tickLine={false} axisLine={false} />
+                <Tooltip cursor={{ fill: 'hsl(var(--muted))', opacity: 0.3 }} contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 12, fontSize: 11 }} />
+                <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </Card>
 
+        {/* Booking Heatmap */}
         <Card className="rounded-2xl border-border p-5 bg-card">
-          <h3 className="font-semibold mb-4 flex items-center gap-2"><Wrench className="w-4 h-4 text-amber-500" /> Maintenance Frequency</h3>
-          <div className="h-64">
+          <h3 className="font-semibold mb-4 flex items-center gap-2"><Calendar className="w-4 h-4 text-indigo-500" /> Booking Heatmap (Peak Hours)</h3>
+          <div className="h-60">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={MAINTENANCE_TREND} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
+              <BarChart data={bookingHeatmap} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                <XAxis dataKey="month" stroke="hsl(var(--muted-foreground))" fontSize={11} tickLine={false} axisLine={false} />
-                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} tickLine={false} axisLine={false} />
-                <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 12, fontSize: 12 }} />
-                <Line type="monotone" dataKey="count" stroke="#F59E0B" strokeWidth={2.5} dot={{ fill: '#F59E0B', r: 4 }} activeDot={{ r: 6 }} />
-              </LineChart>
+                <XAxis dataKey="hour" stroke="hsl(var(--muted-foreground))" fontSize={10} tickLine={false} axisLine={false} />
+                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={10} tickLine={false} axisLine={false} />
+                <Tooltip cursor={{ fill: 'hsl(var(--muted))', opacity: 0.3 }} contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 12, fontSize: 11 }} />
+                <Bar dataKey="Bookings" fill="#6366f1" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+
+        {/* Maintenance Categories */}
+        <Card className="rounded-2xl border-border p-5 bg-card">
+          <h3 className="font-semibold mb-4 flex items-center gap-2"><Wrench className="w-4 h-4 text-amber-500" /> Maintenance by Category</h3>
+          <div className="h-60">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={maintenanceFreq} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                <XAxis dataKey="category" stroke="hsl(var(--muted-foreground))" fontSize={10} tickLine={false} axisLine={false} />
+                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={10} tickLine={false} axisLine={false} />
+                <Tooltip cursor={{ fill: 'hsl(var(--muted))', opacity: 0.3 }} contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 12, fontSize: 11 }} />
+                <Bar dataKey="requests" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+              </BarChart>
             </ResponsiveContainer>
           </div>
         </Card>
       </div>
 
-      <Card className="rounded-2xl border-border p-5 bg-card">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 className="font-semibold flex items-center gap-2"><Clock className="w-4 h-4 text-rose-500" /> Idle Assets</h3>
-            <p className="text-xs text-muted-foreground">Assets unused for 30+ days — candidates for re-allocation.</p>
-          </div>
-          <Badge variant="outline" className="border-rose-500/30 text-rose-600 dark:text-rose-400 bg-rose-500/5">{IDLE_ASSETS.length} flagged</Badge>
-        </div>
-        <div className="space-y-2">
-          {IDLE_ASSETS.map((a) => (
-            <div key={a.tag} className="rounded-xl border border-border p-3 flex items-center gap-3 hover:bg-muted/30 transition-colors">
-              <div className="w-9 h-9 rounded-lg bg-rose-500/10 text-rose-500 flex items-center justify-center shrink-0">
-                <Clock className="w-4 h-4" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium">{a.name} <span className="font-mono text-xs text-sky-500 ml-1">{a.tag}</span></div>
-                <div className="text-xs text-muted-foreground">{a.category} • {a.location}</div>
-              </div>
-              <div className="text-xs"><span className="font-semibold text-rose-500">Unused {a.days}+ days</span></div>
+      {/* Information Lists Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        {/* Idle Assets List */}
+        <Card className="rounded-2xl border-border p-5 bg-card">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="font-semibold flex items-center gap-2"><Clock className="w-4 h-4 text-rose-500" /> Idle / Available Assets</h3>
+              <p className="text-xs text-muted-foreground">Unallocated assets ready for deployment.</p>
             </div>
-          ))}
+            <Badge className="bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20">{idleAssetsList.length} listed</Badge>
+          </div>
+          <div className="divide-y divide-border">
+            {idleAssetsList.map((a) => (
+              <div key={a.id} className="py-2.5 flex items-center justify-between text-xs hover:bg-muted/10 transition-colors">
+                <div>
+                  <span className="font-semibold text-sm">{a.name}</span>
+                  <span className="font-mono text-[10px] text-sky-500 ml-2">({a.tag})</span>
+                  <p className="text-muted-foreground text-[10px] mt-0.5">{a.category} • Location: {a.location}</p>
+                </div>
+                <Badge variant="outline" className="capitalize text-[10px] border-emerald-500/20 text-emerald-600 bg-emerald-500/5">Available</Badge>
+              </div>
+            ))}
+            {idleAssetsList.length === 0 && (
+              <div className="text-center py-8 text-xs text-muted-foreground">No idle assets found.</div>
+            )}
+          </div>
+        </Card>
+
+        {/* Retirement Alert Radar */}
+        <Card className="rounded-2xl border-border p-5 bg-card">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="font-semibold flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-amber-500" /> Retirement & Condition Radar</h3>
+              <p className="text-xs text-muted-foreground">Assets with Poor/Damaged condition or age &gt; 2 years.</p>
+            </div>
+            <Badge className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20">{retirementAlerts.length} warnings</Badge>
+          </div>
+          <div className="divide-y divide-border">
+            {retirementAlerts.map((a) => {
+              const ageYears = a.acquisitionDate ? (new Date().getFullYear() - new Date(a.acquisitionDate).getFullYear()) : 0
+              const isOld = ageYears >= 2
+              return (
+                <div key={a.id} className="py-2.5 flex items-center justify-between text-xs hover:bg-muted/10 transition-colors">
+                  <div>
+                    <span className="font-semibold text-sm">{a.name}</span>
+                    <span className="font-mono text-[10px] text-sky-500 ml-2">({a.tag})</span>
+                    <p className="text-muted-foreground text-[10px] mt-0.5">Condition: <strong className="text-foreground">{a.condition || 'Fair'}</strong> | Age: {ageYears} yrs</p>
+                  </div>
+                  <Badge variant="outline" className={`text-[10px] border-rose-500/20 text-rose-600 bg-rose-500/5`}>
+                    {isOld ? 'Old Stock' : 'Check Condition'}
+                  </Badge>
+                </div>
+              )
+            })}
+            {retirementAlerts.length === 0 && (
+              <div className="text-center py-8 text-xs text-muted-foreground">No warnings flagged.</div>
+            )}
+          </div>
+        </Card>
+      </div>
+
+      {/* Export Center Card */}
+      <Card className="rounded-2xl border-border p-5 bg-card">
+        <h3 className="font-semibold mb-2 flex items-center gap-2"><Download className="w-4 h-4 text-sky-500" /> Exportable Data Center</h3>
+        <p className="text-xs text-muted-foreground mb-4">Export customized workspace reports as standardized CSV logs.</p>
+        <div className="flex gap-3 flex-wrap">
+          <Button onClick={() => exportCSV('assets')} className="bg-sky-500 hover:bg-sky-600 text-white rounded-lg text-xs h-9 active:scale-[0.98] transition-all">
+            <Download className="w-3.5 h-3.5 mr-1.5" /> Export Inventory CSV
+          </Button>
+          <Button onClick={() => exportCSV('bookings')} className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs h-9 active:scale-[0.98] transition-all">
+            <Download className="w-3.5 h-3.5 mr-1.5" /> Export Bookings CSV
+          </Button>
+          <Button onClick={() => exportCSV('maintenance')} className="bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs h-9 active:scale-[0.98] transition-all">
+            <Download className="w-3.5 h-3.5 mr-1.5" /> Export Repair Log CSV
+          </Button>
         </div>
       </Card>
     </div>
@@ -4052,7 +4267,7 @@ function App() {
                 {active === 'bookings' && <BookingsScreen bookings={bookings} assets={assets} onBook={handleAddBooking} />}
                 {active === 'maintenance' && <MaintenanceScreen tickets={tickets} onMoveTicket={onMoveTicket} onRaise={() => setMaintOpen(true)} role={role} />}
                 {active === 'audit' && <AuditScreen assets={assets} departments={departments} profiles={profiles} addLog={addLog} currentUser={currentUser} setAssets={setAssets} />}
-                {active === 'reports' && <ReportsScreen />}
+                {active === 'reports' && <ReportsScreen assets={assets} bookings={bookings} tickets={tickets} />}
                 {active === 'logs' && <LogsScreen activityLog={activityLog} user={currentUser} role={role} onMarkAllRead={() => setActivityLog(prev => prev.map(a => ({ ...a, unread: false })))} />}
                 {active === 'org' && <OrgScreen onDataChanged={loadGlobalData} />}
               </motion.div>
