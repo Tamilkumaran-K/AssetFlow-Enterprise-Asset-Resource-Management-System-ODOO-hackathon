@@ -2518,6 +2518,15 @@ function ReportsScreen() {
               </div>
               <div className="text-xs"><span className="font-semibold text-rose-500">Unused {a.days}+ days</span></div>
             </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  )
+}
+
+/* ---------------- Logs ---------------- */
+
 function timeAgo(dateStr) {
   if (!dateStr) return 'Unknown time'
   const diff = Date.now() - new Date(dateStr).getTime()
@@ -3783,34 +3792,62 @@ function App() {
   }, [theme])
 
   const handleAddBooking = async (assetId, startTime, endTime, title) => {
-    const { data, error } = await supabase.from('bookings').insert({
-      asset_id: assetId,
-      booked_by: profiles[0]?.id,
-      start_time: startTime.toISOString(),
-      end_time: endTime.toISOString(),
-      status: 'Upcoming'
-    }).select('*, profile:profiles!bookings_booked_by_fkey(name), asset:assets!bookings_asset_id_fkey(asset_tag, name)').single()
+    try {
+      const isPlaceholder = !process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('your-supabase-project')
+      if (isPlaceholder) {
+        throw new Error('Placeholder credentials')
+      }
+      const { data, error } = await supabase.from('bookings').insert({
+        asset_id: assetId,
+        booked_by: currentUser?.id || profiles[0]?.id,
+        start_time: startTime.toISOString(),
+        end_time: endTime.toISOString(),
+        status: 'Upcoming'
+      }).select('*, profile:profiles!bookings_booked_by_fkey(name), asset:assets!bookings_asset_id_fkey(asset_tag, name)').single()
 
-    if (error) { toast.error(error.message); return }
-    
-    const startD = new Date(data.start_time)
-    const endD = new Date(data.end_time)
-    const startH = startD.getHours() + (startD.getMinutes() / 60)
-    const endH = endD.getHours() + (endD.getMinutes() / 60)
-    
-    const newBooking = {
-      id: data.id,
-      assetTag: data.asset?.asset_tag,
-      assetName: data.asset?.name,
-      startDate: startD,
-      start: startH,
-      end: endH,
-      user: data.profile?.name,
-      title: title || 'Booking',
-      status: data.status
+      if (error) { toast.error(error.message); return }
+      
+      const startD = new Date(data.start_time)
+      const endD = new Date(data.end_time)
+      const startH = startD.getHours() + (startD.getMinutes() / 60)
+      const endH = endD.getHours() + (endD.getMinutes() / 60)
+      
+      const newBooking = {
+        id: data.id,
+        assetTag: data.asset?.asset_tag,
+        assetName: data.asset?.name,
+        startDate: startD,
+        start: startH,
+        end: endH,
+        user: data.profile?.name || currentUser?.name || 'Priya Shah',
+        title: title || 'Booking',
+        status: data.status
+      }
+      setBookings(prev => [...prev, newBooking])
+      addLog('booking', `Booking confirmed — ${newBooking.assetName} (${newBooking.title}, ${newBooking.user})`, newBooking.user, newBooking.user)
+      toast.success('Booking confirmed')
+    } catch (err) {
+      // Local fallback
+      const asset = assets.find(a => a.id === assetId)
+      const startD = new Date(startTime)
+      const endD = new Date(endTime)
+      const startH = startD.getHours() + (startD.getMinutes() / 60)
+      const endH = endD.getHours() + (endD.getMinutes() / 60)
+      const newBooking = {
+        id: `local-bk-${Date.now()}`,
+        assetTag: asset?.tag || 'AF-001',
+        assetName: asset?.name || 'Local Asset',
+        startDate: startD,
+        start: startH,
+        end: endH,
+        user: currentUser?.name || 'Priya Shah',
+        title: title || 'Booking',
+        status: 'Upcoming'
+      }
+      setBookings(prev => [...prev, newBooking])
+      addLog('booking', `Booking confirmed — ${newBooking.assetName} (${newBooking.title}, ${newBooking.user})`, newBooking.user, newBooking.user)
+      toast.success('Booking confirmed (Local Session)')
     }
-    setBookings(prev => [...prev, newBooking])
-    toast.success('Booking confirmed')
   }
 
   const handleRegisterAsset = async (newAssetData) => {
