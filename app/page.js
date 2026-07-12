@@ -1519,7 +1519,8 @@ function BookingsScreen({ bookings, onBook, assets }) {
   const [title, setTitle] = useState('')
 
   const dayBookings = bookings.filter((b) => b.assetTag === assetTag)
-  const hasOverlap = () => dayBookings.some((b) => b.day === dayIdx && !(endH <= b.start || startH >= b.end))
+  const activeDayBookings = dayBookings.filter(b => b.status !== 'Cancelled')
+  const hasOverlap = () => activeDayBookings.some((b) => b.day === dayIdx && !(endH <= b.start || startH >= b.end))
 
   const submit = () => {
     if (hasOverlap()) { toast.error('Time slot overlaps with an existing booking.'); return }
@@ -1593,15 +1594,31 @@ function BookingsScreen({ bookings, onBook, assets }) {
                       <motion.div
                         initial={{ opacity: 0, scale: 0.96 }}
                         animate={{ opacity: 1, scale: 1 }}
-                        className="absolute inset-x-1 top-1 rounded-lg bg-sky-500/15 border border-sky-500/30 p-1.5 z-10 overflow-hidden"
+                        className={`absolute inset-x-1 top-1 rounded-lg border p-1.5 z-10 overflow-hidden ${
+                          booking.status === 'Cancelled' ? 'bg-rose-500/15 border-rose-500/30' :
+                          booking.status === 'Completed' ? 'bg-slate-500/15 border-slate-500/30' :
+                          booking.status === 'Ongoing' ? 'bg-emerald-500/15 border-emerald-500/30' :
+                          'bg-sky-500/15 border-sky-500/30'
+                        }`}
                         style={{ height: `calc(${(booking.end - booking.start) / 0.5 * 56}px - 8px)` }}
                       >
-                        <div className="text-[10px] font-semibold text-sky-600 dark:text-sky-400 truncate">{booking.title}</div>
+                        <div className={`text-[10px] font-semibold truncate ${
+                          booking.status === 'Cancelled' ? 'text-rose-600 dark:text-rose-400' :
+                          booking.status === 'Completed' ? 'text-slate-600 dark:text-slate-400' :
+                          booking.status === 'Ongoing' ? 'text-emerald-600 dark:text-emerald-400' :
+                          'text-sky-600 dark:text-sky-400'
+                        }`}>{booking.title}</div>
                         <div className="text-[10px] text-muted-foreground truncate">{booking.user}</div>
                         <div className="text-[10px] text-muted-foreground">{formatTime(booking.start)} – {formatTime(booking.end)}</div>
+                        <div className="text-[9px] uppercase font-bold tracking-wider mt-1 opacity-80">{booking.status}</div>
                       </motion.div>
                     )}
-                    {booking && !isStart && <div className="absolute inset-0 bg-sky-500/5" />}
+                    {booking && !isStart && <div className={`absolute inset-0 ${
+                      booking.status === 'Cancelled' ? 'bg-rose-500/5' :
+                      booking.status === 'Completed' ? 'bg-slate-500/5' :
+                      booking.status === 'Ongoing' ? 'bg-emerald-500/5' :
+                      'bg-sky-500/5'
+                    }`} />}
                   </div>
                 )
               })}
@@ -2634,7 +2651,7 @@ function App() {
       supabase.from('profiles').select('*, department:departments!profiles_department_id_fkey(name)').eq('status', 'Active').order('name'),
       supabase.from('maintenance_requests').select('*, asset:assets(name, asset_tag), profile:profiles(name)').order('created_at', { ascending: false }),
       supabase.from('transfer_requests').select('*, from:profiles!transfer_requests_from_employee_id_fkey(name), to:profiles!transfer_requests_to_employee_id_fkey(name), asset:assets(name, asset_tag)').eq('status', 'Pending').order('created_at', { ascending: false }),
-      supabase.from('bookings').select('*, profile:profiles!bookings_booked_by_fkey(name), asset:assets!bookings_asset_id_fkey(asset_tag, name)').in('status', ['Upcoming', 'Ongoing'])
+      supabase.from('bookings').select('*, profile:profiles!bookings_booked_by_fkey(name), asset:assets!bookings_asset_id_fkey(asset_tag, name)')
     ])
     
     setCategories(catRes.data || [])
