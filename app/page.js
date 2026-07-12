@@ -1061,9 +1061,7 @@ function Dashboard({ onQuick, onNavigate, user }) {
               <button className="text-xs text-sky-500 hover:text-sky-600 font-medium" onClick={() => onNavigate('logs')}>View all</button>
             </div>
             <div className="space-y-1 max-h-[380px] overflow-y-auto pr-1">
-function DashboardScreen({ role, onNavigate, user, activityLogs }) {
-// ...
-              {activityLogs.slice(0, 8).map((a, i) => {
+              {ACTIVITY.slice(0, 8).map((a, i) => {
                 const Icon = ICON_MAP[a.icon] ?? Sparkles
                 return (
                   <div key={a.id} className="flex gap-3 group py-2 border-b border-border last:border-0">
@@ -1857,9 +1855,9 @@ function ReportsScreen() {
 
 /* ---------------- Logs ---------------- */
 
-function LogsScreen({ activityLogs }) {
+function LogsScreen() {
   const [filter, setFilter] = useState('all')
-  const filtered = activityLogs.filter((a) => {
+  const filtered = ACTIVITY.filter((a) => {
     if (filter === 'all') return true
     if (filter === 'alerts') return a.type === 'alert'
     if (filter === 'approvals') return a.type === 'transfer'
@@ -1906,7 +1904,7 @@ function LogsScreen({ activityLogs }) {
 
 /* ---------------- Org ---------------- */
 
-function OrgScreen({ onDataChanged, addLog }) {
+function OrgScreen({ onDataChanged }) {
   const [departments, setDepartments] = useState([])
   const [profiles, setProfiles] = useState([])
   const [categories, setCategories] = useState([])
@@ -1940,12 +1938,10 @@ function OrgScreen({ onDataChanged, addLog }) {
       const { error } = await supabase.from('departments').update(deptData).eq('id', editDept.id)
       if (error) { toast.error('Failed to update: ' + error.message); return false }
       toast.success('Department updated')
-      if (addLog) addLog(`Updated department: ${deptData.name}`, 'system', 'Building2')
     } else {
       const { error } = await supabase.from('departments').insert([deptData])
       if (error) { toast.error('Failed to create: ' + error.message); return false }
       toast.success('Department created')
-      if (addLog) addLog(`Created new department: ${deptData.name}`, 'system', 'Building2')
     }
     loadData()
     if (onDataChanged) onDataChanged()
@@ -1958,12 +1954,10 @@ function OrgScreen({ onDataChanged, addLog }) {
       const { error } = await supabase.from('asset_categories').update(catData).eq('id', editCat.id)
       if (error) { toast.error('Failed to update category: ' + error.message); return false }
       toast.success('Category updated')
-      if (addLog) addLog(`Updated category: ${catData.name}`, 'system', 'Layers')
     } else {
       const { error } = await supabase.from('asset_categories').insert([catData])
       if (error) { toast.error('Failed to create category: ' + error.message); return false }
       toast.success('Category created')
-      if (addLog) addLog(`Created new category: ${catData.name}`, 'system', 'Layers')
     }
     loadData()
     if (onDataChanged) onDataChanged()
@@ -1971,12 +1965,11 @@ function OrgScreen({ onDataChanged, addLog }) {
     return true
   }
 
-  const handleDeleteCat = async (id, name) => {
+  const handleDeleteCat = async (id) => {
     if (!window.confirm('Are you sure you want to remove this category?')) return
     const { error } = await supabase.from('asset_categories').delete().eq('id', id)
     if (error) { toast.error('Failed to remove: ' + error.message); return }
     toast.success('Category removed')
-    if (addLog) addLog(`Removed category: ${name}`, 'alert', 'Trash2')
     loadData()
     if (onDataChanged) onDataChanged()
   }
@@ -1986,12 +1979,10 @@ function OrgScreen({ onDataChanged, addLog }) {
       const { error } = await supabase.from('profiles').update(empData).eq('id', editEmp.id)
       if (error) { toast.error('Failed to update employee: ' + error.message); return false }
       toast.success('Employee updated')
-      if (addLog) addLog(`Updated employee profile: ${empData.name}`, 'system', 'User')
     } else {
       const { error } = await supabase.from('profiles').insert([empData])
       if (error) { toast.error('Failed to add employee: ' + error.message); return false }
       toast.success('Employee added')
-      if (addLog) addLog(`Added new employee: ${empData.name}`, 'system', 'UserPlus')
     }
     loadData()
     if (onDataChanged) onDataChanged()
@@ -1999,12 +1990,11 @@ function OrgScreen({ onDataChanged, addLog }) {
     return true
   }
 
-  const handleDeleteEmp = async (id, name) => {
+  const handleDeleteEmp = async (id) => {
     if (!window.confirm('Are you sure you want to deactivate and remove this employee?')) return
     const { error } = await supabase.from('profiles').update({ status: 'Inactive' }).eq('id', id)
     if (error) { toast.error('Failed to remove: ' + error.message); return }
     toast.success('Employee removed')
-    if (addLog) addLog(`Deactivated employee: ${name}`, 'alert', 'User')
     loadData()
     if (onDataChanged) onDataChanged()
   }
@@ -2013,6 +2003,35 @@ function OrgScreen({ onDataChanged, addLog }) {
     if (!name) return '?'
     const parts = name.split(' ')
     return parts.length > 1 ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase() : name.substring(0, 2).toUpperCase()
+  }
+
+  const DepartmentNode = ({ dept, depth = 0 }) => {
+    const children = departments.filter(d => d.parent_department_id === dept.id)
+    return (
+      <div className="space-y-2">
+        <div className={`rounded-xl border border-border p-3 flex items-center gap-3 ${depth > 0 ? 'bg-muted/30' : ''}`} style={{ marginLeft: `${depth * 28}px` }}>
+          <div className="w-9 h-9 rounded-lg bg-sky-500/10 text-sky-500 flex items-center justify-center">
+            {depth > 0 ? <ChevronRight className="w-4 h-4 opacity-50" /> : <Building2 className="w-4 h-4" />}
+          </div>
+          <div className="flex-1">
+            <div className="text-sm font-medium">{dept.name} <Badge variant={dept.status === 'Active' ? 'outline' : 'secondary'} className="ml-2 text-[10px]">{dept.status}</Badge></div>
+            <div className="text-xs text-muted-foreground">Head: {dept.head?.name || 'Unassigned'}</div>
+          </div>
+          <Badge variant="outline" className="border-border">{dept.profiles?.[0]?.count || 0} members</Badge>
+          <Button variant="ghost" size="icon" onClick={() => { setEditDept(dept); setAddDeptOpen(true) }} className="text-sky-500 hover:text-sky-600 hover:bg-sky-500/10 h-8 w-8 ml-2">
+            <Pencil className="w-4 h-4" />
+          </Button>
+          <Button variant="ghost" size="icon" onClick={() => handleDeleteDept(dept.id)} className="text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 h-8 w-8 ml-1">
+            <Trash2 className="w-4 h-4" />
+          </Button>
+        </div>
+        {children.length > 0 && (
+          <div className="space-y-2">
+            {children.map(child => <DepartmentNode key={child.id} dept={child} depth={depth + 1} />)}
+          </div>
+        )}
+      </div>
+    )
   }
 
   return (
@@ -2036,22 +2055,13 @@ function OrgScreen({ onDataChanged, addLog }) {
               </Button>
             </div>
             <div className="space-y-2">
-              {loading ? <div className="text-sm text-muted-foreground p-4 text-center">Loading departments...</div> : departments.map((d) => (
-                <div key={d.id} className="rounded-xl border border-border p-3 flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-lg bg-sky-500/10 text-sky-500 flex items-center justify-center"><Building2 className="w-4 h-4" /></div>
-                  <div className="flex-1">
-                    <div className="text-sm font-medium">{d.name} <Badge variant={d.status === 'Active' ? 'outline' : 'secondary'} className="ml-2 text-[10px]">{d.status}</Badge></div>
-                    <div className="text-xs text-muted-foreground">Head: {d.head?.name || 'Unassigned'}</div>
-                  </div>
-                  <Badge variant="outline" className="border-border">{d.profiles?.[0]?.count || 0} members</Badge>
-                  <Button variant="ghost" size="icon" onClick={() => { setEditDept(d); setAddDeptOpen(true) }} className="text-sky-500 hover:text-sky-600 hover:bg-sky-500/10 h-8 w-8 ml-2">
-                    <Pencil className="w-4 h-4" />
-                  </Button>
-                  <Button variant="ghost" size="icon" onClick={() => handleDeleteDept(d.id, d.name)} className="text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 h-8 w-8 ml-2">
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
-              ))}
+              {loading ? (
+                <div className="text-sm text-muted-foreground p-4 text-center">Loading departments...</div>
+              ) : (
+                departments.filter(d => !d.parent_department_id).map((d) => (
+                  <DepartmentNode key={d.id} dept={d} depth={0} />
+                ))
+              )}
               {departments.length === 0 && !loading && <div className="text-sm text-muted-foreground p-4 text-center">No departments yet.</div>}
             </div>
           </Card>
@@ -2085,7 +2095,7 @@ function OrgScreen({ onDataChanged, addLog }) {
                       <Button variant="ghost" size="icon" onClick={() => { setEditCat(c); setAddCatOpen(true) }} className="text-sky-500 hover:text-sky-600 hover:bg-sky-500/10 h-6 w-6">
                         <Pencil className="w-3 h-3" />
                       </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleDeleteCat(c.id, c.name)} className="text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 h-6 w-6">
+                      <Button variant="ghost" size="icon" onClick={() => handleDeleteCat(c.id)} className="text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 h-6 w-6">
                         <Trash2 className="w-3 h-3" />
                       </Button>
                     </div>
@@ -2128,7 +2138,7 @@ function OrgScreen({ onDataChanged, addLog }) {
                   <Button variant="ghost" size="icon" onClick={() => { setEditEmp(e); setInviteOpen(true) }} className="text-sky-500 hover:text-sky-600 hover:bg-sky-500/10 h-8 w-8 ml-2">
                     <Pencil className="w-4 h-4" />
                   </Button>
-                  <Button variant="ghost" size="icon" onClick={() => handleDeleteEmp(e.id, e.name)} className="text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 h-8 w-8 ml-1">
+                  <Button variant="ghost" size="icon" onClick={() => handleDeleteEmp(e.id)} className="text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 h-8 w-8 ml-1">
                     <Trash2 className="w-4 h-4" />
                   </Button>
                 </div>
@@ -2554,12 +2564,6 @@ function App() {
   const [tickets, setTickets] = useState([])
   const [transfers, setTransfers] = useState([])
   const [loadingApp, setLoadingApp] = useState(true)
-  const [activityLogs, setActivityLogs] = useState(ACTIVITY)
-
-  const addLog = (text, type = 'system', icon = 'CheckCircle2') => {
-    const newLog = { id: 'log-' + Date.now(), text, time: 'Just now', type, icon }
-    setActivityLogs(prev => [newLog, ...prev])
-  }
 
   const [allocateAsset, setAllocateAsset] = useState(null)
   const [registerOpen, setRegisterOpen] = useState(false)
@@ -2718,7 +2722,7 @@ function App() {
           <main className="flex-1 overflow-x-hidden">
             <AnimatePresence mode="wait">
               <motion.div key={active} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.25 }}>
-                {active === 'dashboard' && <Dashboard user={currentUser} onNavigate={setActive} activityLogs={activityLogs} onQuick={(k) => {
+                {active === 'dashboard' && <Dashboard user={currentUser} onNavigate={setActive} onQuick={(k) => {
                   if (k === 'register') setRegisterOpen(true)
                   if (k === 'book') setActive('bookings')
                   if (k === 'maintenance') setMaintOpen(true)
@@ -2729,8 +2733,8 @@ function App() {
                 {active === 'maintenance' && <MaintenanceScreen tickets={tickets} onMoveTicket={onMoveTicket} onRaise={() => setMaintOpen(true)} />}
                 {active === 'audit' && <AuditScreen assets={assets} />}
                 {active === 'reports' && <ReportsScreen />}
-                {active === 'logs' && <LogsScreen activityLogs={activityLogs} />}
-                {active === 'org' && <OrgScreen onDataChanged={loadGlobalData} addLog={addLog} />}
+                {active === 'logs' && <LogsScreen />}
+                {active === 'org' && <OrgScreen onDataChanged={loadGlobalData} />}
               </motion.div>
             </AnimatePresence>
           </main>
