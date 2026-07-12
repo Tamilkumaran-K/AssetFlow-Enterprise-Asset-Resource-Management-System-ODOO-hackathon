@@ -1116,7 +1116,14 @@ function AssetDetailsDialog({ asset, open, onClose, onOpenAllocate, isAdmin }) {
               <span className="font-mono text-sky-500 font-medium">{asset.tag}</span> • {asset.category}
             </p>
           </div>
-          <StatusChip status={asset.status} />
+          <div className="flex flex-col items-end gap-2">
+            <StatusChip status={asset.status} />
+            {isAdmin && (
+              <Button size="sm" onClick={() => { onOpenAllocate(asset); onClose(); }} className="h-7 text-[10px] uppercase font-bold tracking-wide rounded bg-sky-500 hover:bg-sky-600 text-white">
+                {asset.status === 'Allocated' ? 'Transfer' : 'Allocate'}
+              </Button>
+            )}
+          </div>
         </div>
         
         <div className="p-6 overflow-y-auto space-y-6">
@@ -1310,6 +1317,8 @@ function AssetsScreen({ assets, categories, onOpenAllocate, onOpenRegister, role
 
 function AllocateDialog({ asset, profiles = [], onClose, onAllocate, onRaiseTransfer }) {
   const [target, setTarget] = useState('')
+  const [returnDate, setReturnDate] = useState('')
+  const [reason, setReason] = useState('')
   
   useEffect(() => {
     if (asset && profiles.length > 0 && !target) {
@@ -1355,11 +1364,11 @@ function AllocateDialog({ asset, profiles = [], onClose, onAllocate, onRaiseTran
                   ))}
                 </SelectContent>
               </Select>
-              <Textarea placeholder="Reason for transfer…" className="rounded-lg" rows={3} />
+              <Textarea placeholder="Reason for transfer…" value={reason} onChange={e => setReason(e.target.value)} className="rounded-lg mt-2" rows={3} />
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={onClose} className="rounded-lg">Cancel</Button>
-              <Button className="bg-amber-500 hover:bg-amber-600 text-white rounded-lg" onClick={() => { onRaiseTransfer(asset, target); onClose() }}>
+              <Button className="bg-amber-500 hover:bg-amber-600 text-white rounded-lg" onClick={() => { onRaiseTransfer(asset, target, reason); onClose() }}>
                 <ArrowLeftRight className="w-4 h-4 mr-1.5" /> Raise Transfer Request
               </Button>
             </DialogFooter>
@@ -1377,19 +1386,27 @@ function AllocateDialog({ asset, profiles = [], onClose, onAllocate, onRaiseTran
             <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-3 flex items-center gap-2 text-sm">
               <CheckCircle2 className="w-4 h-4 text-emerald-500" /> Asset is available for direct allocation.
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Assign to</label>
-              <Select value={target} onValueChange={setTarget}>
-                <SelectTrigger className="h-11 rounded-lg"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {profiles.map((e) => <SelectItem key={e.id} value={e.id}>{e.name} {e.department?.name ? `— ${e.department.name}` : ''}</SelectItem>)}
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium">Assign to</label>
+                <Select value={target} onValueChange={setTarget}>
+                  <SelectTrigger className="h-11 rounded-lg mt-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {profiles.map((e) => <SelectItem key={e.id} value={e.id}>{e.name} {e.department?.name ? `— ${e.department.name}` : ''}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-sm font-medium">Expected Return (Optional)</label>
+                <Input type="date" value={returnDate} onChange={(e) => setReturnDate(e.target.value)} className="h-11 rounded-lg mt-1" />
+              </div>
+            </div>
+            <div>
               <Textarea placeholder="Purpose / notes…" className="rounded-lg" rows={3} />
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={onClose} className="rounded-lg">Cancel</Button>
-              <Button className="bg-sky-500 hover:bg-sky-600 text-white rounded-lg active:scale-[0.98] transition-transform" onClick={() => { onAllocate(asset, target); onClose() }}>
+              <Button className="bg-sky-500 hover:bg-sky-600 text-white rounded-lg active:scale-[0.98] transition-transform" onClick={() => { onAllocate(asset, target, returnDate); onClose() }}>
                 <UserPlus className="w-4 h-4 mr-1.5" /> Confirm Allocation
               </Button>
             </DialogFooter>
@@ -1402,8 +1419,8 @@ function AllocateDialog({ asset, profiles = [], onClose, onAllocate, onRaiseTran
 
 /* ---------------- Allocations ---------------- */
 
-function AllocationsScreen({ assets, onOpenAllocate, transfers }) {
-  const allocated = assets.filter((a) => a.status === 'allocated')
+function AllocationsScreen({ assets, onOpenAllocate, transfers, onApproveTransfer, onRejectTransfer, onReturnAsset }) {
+  const allocated = assets.filter((a) => a.status === 'allocated' || a.status === 'Allocated')
   return (
     <div className="p-6 lg:p-8 space-y-6 max-w-[1400px] mx-auto">
       <div>
@@ -1415,25 +1432,36 @@ function AllocationsScreen({ assets, onOpenAllocate, transfers }) {
         <Card className="rounded-2xl border-border p-5 bg-card lg:col-span-2">
           <h3 className="font-semibold mb-4 flex items-center gap-2"><Users className="w-4 h-4 text-sky-500" /> Currently Allocated</h3>
           <div className="space-y-2">
-            {allocated.map((a) => (
-              <div key={a.id} className="flex items-center gap-3 rounded-xl border border-border p-3 hover:bg-muted/40 transition-colors">
-                <div className="w-10 h-10 rounded-xl bg-sky-500/10 text-sky-500 flex items-center justify-center shrink-0">
-                  <Package className="w-4 h-4" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium truncate">{a.name}</div>
-                  <div className="text-xs text-muted-foreground flex items-center gap-2 flex-wrap">
-                    <span className="font-mono text-sky-500">{a.tag}</span>
-                    <span>•</span><span>{a.allocatedTo}</span>
-                    <span>•</span><span>{a.dept}</span>
+            {allocated.map((a) => {
+              const isOverdue = a.expectedReturnDate && new Date(a.expectedReturnDate) < new Date()
+              return (
+                <div key={a.id} className={`flex items-center gap-3 rounded-xl border p-3 transition-colors ${isOverdue ? 'border-rose-500/30 bg-rose-500/5' : 'border-border hover:bg-muted/40'}`}>
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isOverdue ? 'bg-rose-500/10 text-rose-500' : 'bg-sky-500/10 text-sky-500'}`}>
+                    <Package className="w-4 h-4" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium truncate flex items-center gap-2">
+                      {a.name}
+                      {isOverdue && <Badge className="bg-rose-500/10 text-rose-600 border-none px-1.5 py-0">Overdue</Badge>}
+                    </div>
+                    <div className="text-xs text-muted-foreground flex items-center gap-2 flex-wrap">
+                      <span className="font-mono text-sky-500">{a.tag}</span>
+                      <span>•</span><span>{a.allocatedTo}</span>
+                      <span>•</span><span>{a.dept}</span>
+                    </div>
+                  </div>
+                  <div className="text-xs text-muted-foreground hidden md:block">Since {a.since}</div>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" className="h-8 rounded-md border-border text-xs" onClick={() => onOpenAllocate(a)}>
+                      Transfer
+                    </Button>
+                    <Button size="sm" variant="outline" className="h-8 rounded-md border-rose-500/30 text-rose-500 hover:bg-rose-500 hover:text-white text-xs" onClick={() => onReturnAsset(a)}>
+                      Return
+                    </Button>
                   </div>
                 </div>
-                <div className="text-xs text-muted-foreground hidden md:block">Since {a.since}</div>
-                <Button size="sm" variant="outline" className="h-8 rounded-md border-border text-xs" onClick={() => onOpenAllocate(a)}>
-                  Transfer
-                </Button>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </Card>
 
@@ -1441,7 +1469,6 @@ function AllocationsScreen({ assets, onOpenAllocate, transfers }) {
           <h3 className="font-semibold mb-4 flex items-center gap-2"><ArrowLeftRight className="w-4 h-4 text-amber-500" /> Pending Transfers</h3>
           <div className="space-y-3">
             {transfers.length === 0 && <div className="text-xs text-muted-foreground py-6 text-center">No pending transfers.</div>}
-            {transfers.map((t) => (
               <div key={t.id} className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 space-y-2">
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-mono text-sky-500">{t.tag}</span>
@@ -1450,6 +1477,10 @@ function AllocationsScreen({ assets, onOpenAllocate, transfers }) {
                 <div className="text-sm font-medium">{t.name}</div>
                 <div className="text-xs text-muted-foreground flex items-center gap-1.5">
                   {t.from} <ArrowRight className="w-3 h-3" /> {t.to}
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <Button size="sm" className="h-8 w-full bg-emerald-500 hover:bg-emerald-600 text-white rounded-md text-xs" onClick={() => onApproveTransfer(t)}>Approve</Button>
+                  <Button size="sm" variant="outline" className="h-8 w-full border-rose-500/20 text-rose-500 hover:bg-rose-500/10 rounded-md text-xs" onClick={() => onRejectTransfer(t)}>Reject</Button>
                 </div>
               </div>
             ))}
@@ -2558,17 +2589,19 @@ function App() {
   const [loadingApp, setLoadingApp] = useState(true)
 
   const [allocateAsset, setAllocateAsset] = useState(null)
+  const [returnAsset, setReturnAsset] = useState(null)
   const [registerOpen, setRegisterOpen] = useState(false)
   const [maintOpen, setMaintOpen] = useState(false)
 
   const loadGlobalData = async () => {
     setLoadingApp(true)
-    const [assetsRes, catRes, allocRes, profRes, maintRes] = await Promise.all([
+    const [assetsRes, catRes, allocRes, profRes, maintRes, transRes] = await Promise.all([
       supabase.from('assets').select('*, category:asset_categories(name)').order('created_at', { ascending: false }),
       supabase.from('asset_categories').select('*').order('name'),
       supabase.from('allocations').select('*, employee:profiles!allocations_assigned_to_employee_id_fkey(name, department:departments!profiles_department_id_fkey(name))').eq('status', 'Active'),
       supabase.from('profiles').select('*, department:departments!profiles_department_id_fkey(name)').eq('status', 'Active').order('name'),
-      supabase.from('maintenance_requests').select('*, asset:assets(name, asset_tag), profile:profiles(name)').order('created_at', { ascending: false })
+      supabase.from('maintenance_requests').select('*, asset:assets(name, asset_tag), profile:profiles(name)').order('created_at', { ascending: false }),
+      supabase.from('transfer_requests').select('*, from:profiles!transfer_requests_from_employee_id_fkey(name), to:profiles!transfer_requests_to_employee_id_fkey(name), asset:assets(name, asset_tag)').eq('status', 'Pending').order('created_at', { ascending: false })
     ])
     
     setCategories(catRes.data || [])
@@ -2587,6 +2620,19 @@ function App() {
     }))
     setTickets(mappedTickets)
 
+    const mappedTransfers = (transRes.data || []).map(t => ({
+      id: t.id,
+      assetId: t.asset_id,
+      tag: t.asset?.asset_tag,
+      name: t.asset?.name,
+      from: t.from?.name || 'Unknown',
+      to: t.to?.name || 'Unknown',
+      fromId: t.from_employee_id,
+      toId: t.to_employee_id,
+      date: new Date(t.created_at).toISOString().slice(0, 10)
+    }))
+    setTransfers(mappedTransfers)
+
     const mappedAssets = (assetsRes.data || []).map(a => {
       const activeAlloc = (allocRes.data || []).find(al => al.asset_id === a.id)
       return {
@@ -2597,8 +2643,10 @@ function App() {
         acquisitionCost: a.acquisition_cost,
         category: a.category?.name || 'Unknown',
         allocatedTo: activeAlloc ? activeAlloc.employee?.name : null,
+        allocatedToId: activeAlloc ? activeAlloc.assigned_to_employee_id : null,
         dept: activeAlloc ? activeAlloc.employee?.department?.name : null,
         since: activeAlloc ? activeAlloc.allocation_date : null,
+        expectedReturnDate: activeAlloc ? activeAlloc.expected_return_date : null,
         status: activeAlloc ? 'Allocated' : (a.status === 'Allocated' ? 'Available' : a.status)
       }
     })
@@ -2633,22 +2681,59 @@ function App() {
     if (view === 'app' && !allowed) setActive('dashboard')
   }, [active, role, view])
 
-  const doAllocate = async (asset, profileId) => {
+  const doAllocate = async (asset, profileId, expectedReturnDate) => {
     // End active allocations
     const { error: updErr } = await supabase.from('allocations').update({ status: 'Returned', return_date: new Date().toISOString() }).eq('asset_id', asset.id).eq('status', 'Active')
     if (updErr) console.error('Failed to end previous allocation:', updErr)
     
     // Insert new allocation
-    const { error } = await supabase.from('allocations').insert([{ asset_id: asset.id, assigned_to_employee_id: profileId, status: 'Active', allocation_date: new Date().toISOString(), allocated_by: profiles[0]?.id }])
+    const insertData = { asset_id: asset.id, assigned_to_employee_id: profileId, status: 'Active', allocation_date: new Date().toISOString(), allocated_by: profiles[0]?.id }
+    if (expectedReturnDate) insertData.expected_return_date = expectedReturnDate
+
+    const { error } = await supabase.from('allocations').insert([insertData])
     if (error) return toast.error(error.message)
     // Update asset status
     await supabase.from('assets').update({ status: 'Allocated' }).eq('id', asset.id)
     toast.success(`Allocated ${asset.tag}`)
     loadGlobalData()
   }
-  const raiseTransfer = async (asset, toProfileId) => {
-    // For this MVP, raiseTransfer behaves exactly like doAllocate
-    await doAllocate(asset, toProfileId)
+
+  const raiseTransfer = async (asset, toProfileId, reason) => {
+    const { error } = await supabase.from('transfer_requests').insert([{
+      asset_id: asset.id,
+      requested_by: profiles[0]?.id,
+      from_employee_id: asset.allocatedToId,
+      to_employee_id: toProfileId,
+      status: 'Pending'
+    }])
+    if (error) return toast.error(error.message)
+    toast.success('Transfer Request Raised')
+    loadGlobalData()
+  }
+
+  const approveTransfer = async (transfer) => {
+    const { error: updErr } = await supabase.from('transfer_requests').update({ status: 'Approved' }).eq('id', transfer.id)
+    if (updErr) return toast.error(updErr.message)
+    
+    // Perform the actual allocation move
+    const asset = assets.find(a => a.id === transfer.assetId)
+    if (asset) await doAllocate(asset, transfer.toId)
+  }
+
+  const rejectTransfer = async (transfer) => {
+    const { error } = await supabase.from('transfer_requests').update({ status: 'Rejected' }).eq('id', transfer.id)
+    if (error) return toast.error(error.message)
+    toast.success('Transfer Rejected')
+    loadGlobalData()
+  }
+
+  const handleReturnAsset = async (asset, checkInNotes) => {
+    const { error: updErr } = await supabase.from('allocations').update({ status: 'Returned', return_date: new Date().toISOString(), check_in_notes: checkInNotes }).eq('asset_id', asset.id).eq('status', 'Active')
+    if (updErr) return toast.error(updErr.message)
+    
+    await supabase.from('assets').update({ status: 'Available' }).eq('id', asset.id)
+    toast.success(`Returned ${asset.tag}`)
+    loadGlobalData()
   }
 
   const raiseMaintenance = async (asset, issue, priority) => {
@@ -2736,8 +2821,37 @@ function App() {
 
       <AllocateDialog asset={allocateAsset} profiles={profiles} onClose={() => setAllocateAsset(null)} onAllocate={doAllocate} onRaiseTransfer={raiseTransfer} />
       <RegisterAssetDialog open={registerOpen} onClose={() => setRegisterOpen(false)} onAdd={handleRegisterAsset} categories={categories} />
+      <ReturnDialog asset={returnAsset} onClose={() => setReturnAsset(null)} onReturn={handleReturnAsset} />
       <RaiseMaintenanceDialog open={maintOpen} onClose={() => setMaintOpen(false)} assets={assets} onRaise={raiseMaintenance} />
     </div>
+  )
+}
+
+function ReturnDialog({ asset, onClose, onReturn }) {
+  const [notes, setNotes] = useState('')
+
+  if (!asset) return null
+  return (
+    <Dialog open={!!asset} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-md rounded-2xl">
+        <DialogHeader>
+          <DialogTitle>Return Asset</DialogTitle>
+          <DialogDescription>Mark <span className="font-mono text-sky-500">{asset.tag}</span> as returned and available.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Check-in Notes / Condition</label>
+            <Textarea placeholder="e.g. Returned in good condition, minor scratch on lid..." value={notes} onChange={(e) => setNotes(e.target.value)} className="rounded-lg" rows={3} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} className="rounded-lg">Cancel</Button>
+          <Button className="bg-rose-500 hover:bg-rose-600 text-white rounded-lg active:scale-[0.98]" onClick={() => { onReturn(asset, notes); onClose() }}>
+            <CheckCircle2 className="w-4 h-4 mr-1.5" /> Confirm Return
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
