@@ -1500,7 +1500,13 @@ function AllocationsScreen({ assets, onOpenAllocate, transfers, onApproveTransfe
 /* ---------------- Bookings calendar ---------------- */
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
-const HOURS = Array.from({ length: 10 }, (_, i) => i + 9)
+const TIMES = Array.from({ length: 19 }, (_, i) => 9 + i * 0.5)
+
+const formatTime = (t) => {
+  const h = Math.floor(t)
+  const m = t % 1 === 0.5 ? '30' : '00'
+  return `${h}:${m}`
+}
 
 function BookingsScreen({ bookings, onBook }) {
   const [asset, setAsset] = useState('AF-0202')
@@ -1555,13 +1561,13 @@ function BookingsScreen({ bookings, onBook }) {
               </div>
             ))}
           </div>
-          {HOURS.map((h) => (
-            <div key={h} className="grid" style={{ gridTemplateColumns: '60px repeat(5, 1fr)' }}>
-              <div className="text-[11px] text-muted-foreground py-3 pr-2 text-right tabular-nums border-t border-border/50">{h}:00</div>
+          {TIMES.map((t) => (
+            <div key={t} className="grid" style={{ gridTemplateColumns: '60px repeat(5, 1fr)' }}>
+              <div className="text-[11px] text-muted-foreground py-3 pr-2 text-right tabular-nums border-t border-border/50">{formatTime(t)}</div>
               {DAYS.map((_, dIdx) => {
                 const dayNum = dIdx + 1
-                const booking = dayBookings.find((b) => b.day === dayNum && h >= b.start && h < b.end)
-                const isStart = booking && booking.start === h
+                const booking = dayBookings.find((b) => b.day === dayNum && t >= b.start && t < b.end)
+                const isStart = booking && booking.start === t
                 return (
                   <div key={dIdx} className="border-t border-l border-border/50 h-14 relative">
                     {isStart && (
@@ -1569,11 +1575,11 @@ function BookingsScreen({ bookings, onBook }) {
                         initial={{ opacity: 0, scale: 0.96 }}
                         animate={{ opacity: 1, scale: 1 }}
                         className="absolute inset-x-1 top-1 rounded-lg bg-sky-500/15 border border-sky-500/30 p-1.5 z-10 overflow-hidden"
-                        style={{ height: `calc(${(booking.end - booking.start) * 56}px - 8px)` }}
+                        style={{ height: `calc(${(booking.end - booking.start) / 0.5 * 56}px - 8px)` }}
                       >
                         <div className="text-[10px] font-semibold text-sky-600 dark:text-sky-400 truncate">{booking.title}</div>
                         <div className="text-[10px] text-muted-foreground truncate">{booking.user}</div>
-                        <div className="text-[10px] text-muted-foreground">{booking.start}:00 – {booking.end}:00</div>
+                        <div className="text-[10px] text-muted-foreground">{formatTime(booking.start)} – {formatTime(booking.end)}</div>
                       </motion.div>
                     )}
                     {booking && !isStart && <div className="absolute inset-0 bg-sky-500/5" />}
@@ -1608,14 +1614,14 @@ function BookingsScreen({ bookings, onBook }) {
                 <label className="text-sm font-medium mb-1.5 block">Start</label>
                 <Select value={String(startH)} onValueChange={(v) => setStartH(Number(v))}>
                   <SelectTrigger className="h-10 rounded-lg"><SelectValue /></SelectTrigger>
-                  <SelectContent>{HOURS.map((h) => <SelectItem key={h} value={String(h)}>{h}:00</SelectItem>)}</SelectContent>
+                  <SelectContent>{TIMES.slice(0, -1).map((t) => <SelectItem key={t} value={String(t)}>{formatTime(t)}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div>
                 <label className="text-sm font-medium mb-1.5 block">End</label>
                 <Select value={String(endH)} onValueChange={(v) => setEndH(Number(v))}>
                   <SelectTrigger className="h-10 rounded-lg"><SelectValue /></SelectTrigger>
-                  <SelectContent>{HOURS.map((h) => <SelectItem key={h} value={String(h + 1)}>{h + 1}:00</SelectItem>)}</SelectContent>
+                  <SelectContent>{TIMES.slice(1).map((t) => <SelectItem key={t} value={String(t)}>{formatTime(t)}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
             </div>
