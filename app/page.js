@@ -1508,9 +1508,9 @@ function AllocationsScreen({ assets, onOpenAllocate, transfers, onApproveTransfe
 const TIMES = Array.from({ length: 19 }, (_, i) => 9 + i * 0.5)
 
 const formatTime = (t) => {
+  if (t % 1 !== 0) return ''
   const h = Math.floor(t)
-  const m = t % 1 === 0.5 ? '30' : '00'
-  return `${h}:${m}`
+  return `${h} to ${h + 1}`
 }
 
 function BookingsScreen({ bookings, onBook, assets }) {
