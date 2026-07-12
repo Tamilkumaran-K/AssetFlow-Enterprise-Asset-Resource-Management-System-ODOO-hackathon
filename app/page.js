@@ -1263,7 +1263,6 @@ function AssetsScreen({ assets, categories, onOpenAllocate, onOpenRegister, role
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3 hidden lg:table-cell">Location</th>
                 <th className="px-4 py-3 hidden xl:table-cell">Allocated To</th>
-                <th className="px-4 py-3 text-right">Action</th>
               </tr>
             </thead>
             <tbody>
@@ -1284,18 +1283,11 @@ function AssetsScreen({ assets, categories, onOpenAllocate, onOpenRegister, role
                     <span className="inline-flex items-center gap-1"><MapPin className="w-3 h-3" />{a.location || '—'}</span>
                   </td>
                   <td className="px-4 py-3 hidden xl:table-cell text-muted-foreground">{a.allocatedTo ?? '—'}</td>
-                  <td className="px-4 py-3 text-right">
-                    {(isAdmin || a.is_shared_bookable) && (
-                      <Button onClick={(e) => { e.stopPropagation(); onOpenAllocate(a); }} size="sm" variant="outline" className="h-8 text-xs rounded-md border-border">
-                        {isAdmin ? (a.status === 'Allocated' ? 'Transfer' : 'Allocate') : 'Book'} <ChevronRight className="w-3 h-3 ml-1" />
-                      </Button>
-                    )}
-                  </td>
                 </motion.tr>
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan="7" className="px-4 py-14 text-center text-sm text-muted-foreground">No assets match your filters.</td>
+                  <td colSpan="6" className="px-4 py-14 text-center text-sm text-muted-foreground">No assets match your filters.</td>
                 </tr>
               )}
             </tbody>
