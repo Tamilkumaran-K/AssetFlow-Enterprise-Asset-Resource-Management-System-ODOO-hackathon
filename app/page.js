@@ -653,7 +653,7 @@ function AuthScreen({ onLogin, defaultMode = 'login' }) {
 /* ---------------- Sidebar & Topbar ---------------- */
 
 const NAV_ITEMS = [
-  { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin'] },
+  { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'employee'] },
   { key: 'assets', label: 'Assets', icon: Package, roles: ['admin'] },
   { key: 'allocations', label: 'Allocation & Transfer', icon: ArrowLeftRight, roles: ['admin'] },
   { key: 'bookings', label: 'Resource Booking', icon: CalendarDays, roles: ['admin', 'employee'] },
