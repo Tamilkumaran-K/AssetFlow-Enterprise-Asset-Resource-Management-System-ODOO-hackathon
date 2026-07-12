@@ -1419,13 +1419,18 @@ function AllocateDialog({ asset, profiles = [], onClose, onAllocate, onRaiseTran
 
 /* ---------------- Allocations ---------------- */
 
-function AllocationsScreen({ assets, onOpenAllocate, transfers, onApproveTransfer, onRejectTransfer, onReturnAsset }) {
+function AllocationsScreen({ assets, onOpenAllocate, transfers, onApproveTransfer, onRejectTransfer, onReturnAsset, onOpenGenericAllocate }) {
   const allocated = assets.filter((a) => a.status === 'allocated' || a.status === 'Allocated')
   return (
     <div className="p-6 lg:p-8 space-y-6 max-w-[1400px] mx-auto">
-      <div>
-        <h1 className="text-2xl lg:text-3xl font-bold tracking-tight">Allocations & Transfers</h1>
-        <p className="text-muted-foreground text-sm mt-1">Smart conflict-checking keeps ownership crystal-clear.</p>
+      <div className="flex justify-between items-start flex-wrap gap-4">
+        <div>
+          <h1 className="text-2xl lg:text-3xl font-bold tracking-tight">Allocations & Transfers</h1>
+          <p className="text-muted-foreground text-sm mt-1">Smart conflict-checking keeps ownership crystal-clear.</p>
+        </div>
+        <Button onClick={onOpenGenericAllocate} className="bg-sky-500 hover:bg-sky-600 text-white rounded-lg h-10">
+          <Plus className="w-4 h-4 mr-1.5" /> Allocate Asset
+        </Button>
       </div>
 
       <div className="grid lg:grid-cols-3 gap-5">
@@ -1469,6 +1474,7 @@ function AllocationsScreen({ assets, onOpenAllocate, transfers, onApproveTransfe
           <h3 className="font-semibold mb-4 flex items-center gap-2"><ArrowLeftRight className="w-4 h-4 text-amber-500" /> Pending Transfers</h3>
           <div className="space-y-3">
             {transfers.length === 0 && <div className="text-xs text-muted-foreground py-6 text-center">No pending transfers.</div>}
+            {transfers.map((t) => (
               <div key={t.id} className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 space-y-2">
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-mono text-sky-500">{t.tag}</span>
@@ -2589,6 +2595,7 @@ function App() {
   const [loadingApp, setLoadingApp] = useState(true)
 
   const [allocateAsset, setAllocateAsset] = useState(null)
+  const [genericAllocateOpen, setGenericAllocateOpen] = useState(false)
   const [returnAsset, setReturnAsset] = useState(null)
   const [registerOpen, setRegisterOpen] = useState(false)
   const [maintOpen, setMaintOpen] = useState(false)
@@ -2806,7 +2813,7 @@ function App() {
                   if (k === 'maintenance') setMaintOpen(true)
                 }} />}
                 {active === 'assets' && <AssetsScreen role={role} assets={assets} categories={categories} onOpenAllocate={setAllocateAsset} onOpenRegister={() => setRegisterOpen(true)} />}
-                {active === 'allocations' && <AllocationsScreen assets={assets} onOpenAllocate={setAllocateAsset} transfers={transfers} />}
+                {active === 'allocations' && <AllocationsScreen assets={assets} onOpenAllocate={setAllocateAsset} onOpenGenericAllocate={() => setGenericAllocateOpen(true)} transfers={transfers} onApproveTransfer={approveTransfer} onRejectTransfer={rejectTransfer} onReturnAsset={setReturnAsset} />}
                 {active === 'bookings' && <BookingsScreen bookings={bookings} onBook={(b) => setBookings((prev) => [...prev, b])} />}
                 {active === 'maintenance' && <MaintenanceScreen tickets={tickets} onMoveTicket={onMoveTicket} onRaise={() => setMaintOpen(true)} />}
                 {active === 'audit' && <AuditScreen assets={assets} />}
@@ -2822,8 +2829,77 @@ function App() {
       <AllocateDialog asset={allocateAsset} profiles={profiles} onClose={() => setAllocateAsset(null)} onAllocate={doAllocate} onRaiseTransfer={raiseTransfer} />
       <RegisterAssetDialog open={registerOpen} onClose={() => setRegisterOpen(false)} onAdd={handleRegisterAsset} categories={categories} />
       <ReturnDialog asset={returnAsset} onClose={() => setReturnAsset(null)} onReturn={handleReturnAsset} />
+      <GenericAllocateDialog open={genericAllocateOpen} availableAssets={assets.filter(a => a.status === 'Available')} profiles={profiles} onClose={() => setGenericAllocateOpen(false)} onAllocate={doAllocate} />
       <RaiseMaintenanceDialog open={maintOpen} onClose={() => setMaintOpen(false)} assets={assets} onRaise={raiseMaintenance} />
     </div>
+  )
+}
+
+function GenericAllocateDialog({ open, availableAssets = [], profiles = [], onClose, onAllocate }) {
+  const [assetId, setAssetId] = useState('')
+  const [target, setTarget] = useState('')
+  const [returnDate, setReturnDate] = useState('')
+
+  useEffect(() => {
+    if (open) {
+      if (availableAssets.length > 0) setAssetId(availableAssets[0].id)
+      if (profiles.length > 0) setTarget(profiles[0].id)
+      setReturnDate('')
+    }
+  }, [open, availableAssets, profiles])
+
+  if (!open) return null
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-lg rounded-2xl">
+        <DialogHeader>
+          <DialogTitle>Allocate Asset</DialogTitle>
+          <DialogDescription>Select an available asset and assign it to an employee.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          {availableAssets.length === 0 ? (
+            <div className="text-sm text-rose-500 font-medium">No available assets to allocate.</div>
+          ) : (
+            <>
+              <div>
+                <label className="text-sm font-medium">Select Asset</label>
+                <Select value={assetId} onValueChange={setAssetId}>
+                  <SelectTrigger className="h-11 rounded-lg mt-1"><SelectValue placeholder="Choose an asset..." /></SelectTrigger>
+                  <SelectContent>
+                    {availableAssets.map((a) => <SelectItem key={a.id} value={a.id}>{a.tag} — {a.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium">Assign to</label>
+                  <Select value={target} onValueChange={setTarget}>
+                    <SelectTrigger className="h-11 rounded-lg mt-1"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {profiles.map((e) => <SelectItem key={e.id} value={e.id}>{e.name} {e.department?.name ? `— ${e.department.name}` : ''}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Expected Return</label>
+                  <Input type="date" value={returnDate} onChange={(e) => setReturnDate(e.target.value)} className="h-11 rounded-lg mt-1" />
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} className="rounded-lg">Cancel</Button>
+          <Button disabled={availableAssets.length === 0} className="bg-sky-500 hover:bg-sky-600 text-white rounded-lg" onClick={() => {
+            const selectedAsset = availableAssets.find(a => a.id === assetId)
+            if (selectedAsset) onAllocate(selectedAsset, target, returnDate)
+            onClose()
+          }}>
+            <UserPlus className="w-4 h-4 mr-1.5" /> Confirm Allocation
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
