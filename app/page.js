@@ -1085,15 +1085,123 @@ function Dashboard({ onQuick, onNavigate, user }) {
 
 /* ---------------- Assets ---------------- */
 
-function AssetsScreen({ assets, onOpenAllocate, onOpenRegister, role }) {
+function AssetDetailsDialog({ asset, open, onClose, onOpenAllocate, isAdmin }) {
+  const [allocHistory, setAllocHistory] = useState([])
+  const [maintHistory, setMaintHistory] = useState([])
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (!asset || !open) return
+    const fetchHistory = async () => {
+      setLoading(true)
+      const [allocs, maints] = await Promise.all([
+        supabase.from('allocations').select('*, profiles!allocations_assigned_to_employee_id_fkey(name)').eq('asset_id', asset.id).order('allocation_date', { ascending: false }),
+        supabase.from('maintenance_requests').select('*').eq('asset_id', asset.id).order('created_at', { ascending: false })
+      ])
+      setAllocHistory(allocs.data || [])
+      setMaintHistory(maints.data || [])
+      setLoading(false)
+    }
+    fetchHistory()
+  }, [asset, open])
+
+  if (!asset) return null
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-[700px] rounded-2xl p-0 overflow-hidden border-border bg-card max-h-[90vh] flex flex-col">
+        <div className="p-6 pb-4 border-b border-border bg-muted/20 flex items-start justify-between">
+          <div>
+            <DialogTitle className="text-xl font-bold tracking-tight">{asset.name}</DialogTitle>
+            <p className="text-sm text-muted-foreground mt-1 flex items-center gap-2">
+              <span className="font-mono text-sky-500 font-medium">{asset.tag}</span> • {asset.category}
+            </p>
+          </div>
+          <StatusChip status={asset.status} />
+        </div>
+        
+        <div className="p-6 overflow-y-auto space-y-6">
+          {/* Metadata Grid */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-muted/20 p-4 rounded-xl border border-border">
+            <div><div className="text-xs text-muted-foreground mb-1">Serial Number</div><div className="text-sm font-medium">{asset.serial || '—'}</div></div>
+            <div><div className="text-xs text-muted-foreground mb-1">Location</div><div className="text-sm font-medium">{asset.location || '—'}</div></div>
+            <div><div className="text-xs text-muted-foreground mb-1">Condition</div><div className="text-sm font-medium">{asset.condition || '—'}</div></div>
+            <div><div className="text-xs text-muted-foreground mb-1">Bookable</div><div className="text-sm font-medium">{asset.is_shared_bookable ? 'Yes' : 'No'}</div></div>
+            <div><div className="text-xs text-muted-foreground mb-1">Acquisition Date</div><div className="text-sm font-medium">{asset.acquisitionDate || '—'}</div></div>
+            <div><div className="text-xs text-muted-foreground mb-1">Acquisition Cost</div><div className="text-sm font-medium">{asset.acquisitionCost ? `$${asset.acquisitionCost}` : '—'}</div></div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Allocation History */}
+            <div className="space-y-3">
+              <h3 className="font-semibold text-sm">Allocation History</h3>
+              {loading ? (
+                <div className="text-xs text-muted-foreground">Loading history...</div>
+              ) : allocHistory.length === 0 ? (
+                <div className="text-xs text-muted-foreground p-4 bg-muted/10 rounded-lg border border-border text-center">No previous allocations</div>
+              ) : (
+                <div className="space-y-2">
+                  {allocHistory.map(a => (
+                    <div key={a.id} className="text-xs p-3 rounded-lg border border-border bg-card">
+                      <div className="font-medium mb-1">{a.profiles?.name || 'Unknown User'}</div>
+                      <div className="text-muted-foreground flex justify-between">
+                        <span>{new Date(a.allocation_date).toLocaleDateString()}</span>
+                        <span>{a.status}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Maintenance History */}
+            <div className="space-y-3">
+              <h3 className="font-semibold text-sm">Maintenance History</h3>
+              {loading ? (
+                <div className="text-xs text-muted-foreground">Loading history...</div>
+              ) : maintHistory.length === 0 ? (
+                <div className="text-xs text-muted-foreground p-4 bg-muted/10 rounded-lg border border-border text-center">No maintenance records</div>
+              ) : (
+                <div className="space-y-2">
+                  {maintHistory.map(m => (
+                    <div key={m.id} className="text-xs p-3 rounded-lg border border-border bg-card">
+                      <div className="font-medium mb-1">{m.issue_description}</div>
+                      <div className="text-muted-foreground flex justify-between">
+                        <span>{new Date(m.created_at).toLocaleDateString()}</span>
+                        <span>{m.status}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="p-4 border-t border-border bg-muted/10 flex justify-between">
+          <Button variant="outline" onClick={onClose} className="rounded-lg">Close</Button>
+          {(isAdmin || asset.is_shared_bookable) && (
+            <Button onClick={() => { onClose(); onOpenAllocate(asset); }} className="bg-sky-500 hover:bg-sky-600 text-white rounded-lg">
+              {isAdmin ? (asset.status === 'Allocated' ? 'Transfer Asset' : 'Allocate Asset') : 'Book Resource'}
+            </Button>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function AssetsScreen({ assets, categories, onOpenAllocate, onOpenRegister, role }) {
   const [q, setQ] = useState('')
   const [cat, setCat] = useState('all')
   const [status, setStatus] = useState('all')
-  const isAdmin = role === 'admin'
+  const [selectedAsset, setSelectedAsset] = useState(null)
+  const isAdmin = role === 'admin' || role === 'Asset Manager'
 
   const filtered = useMemo(() => {
     return assets.filter((a) => {
-      const matchQ = !q || a.tag.toLowerCase().includes(q.toLowerCase()) || a.name.toLowerCase().includes(q.toLowerCase()) || a.serial.toLowerCase().includes(q.toLowerCase())
+      const matchQ = !q || (a.tag && a.tag.toLowerCase().includes(q.toLowerCase())) || 
+                     (a.name && a.name.toLowerCase().includes(q.toLowerCase())) || 
+                     (a.serial && a.serial.toLowerCase().includes(q.toLowerCase()))
       const matchCat = cat === 'all' || a.category === cat
       const matchStatus = status === 'all' || a.status === status
       return matchQ && matchCat && matchStatus
@@ -1121,23 +1229,26 @@ function AssetsScreen({ assets, onOpenAllocate, onOpenRegister, role }) {
         <div className="flex flex-col md:flex-row gap-2 mb-4">
           <div className="relative flex-1">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by tag, serial, or QR code…" className="pl-9 h-10 rounded-lg" />
+            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by tag, serial, or name…" className="pl-9 h-10 rounded-lg" />
           </div>
           <Select value={cat} onValueChange={setCat}>
             <SelectTrigger className="w-40 h-10 rounded-lg"><SelectValue placeholder="Category" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Categories</SelectItem>
-              {CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+              {categories && categories.map((c) => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={status} onValueChange={setStatus}>
             <SelectTrigger className="w-40 h-10 rounded-lg"><SelectValue placeholder="Status" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Statuses</SelectItem>
-              <SelectItem value="available">Available</SelectItem>
-              <SelectItem value="allocated">Allocated</SelectItem>
-              <SelectItem value="maintenance">Maintenance</SelectItem>
-              <SelectItem value="missing">Missing</SelectItem>
+              <SelectItem value="Available">Available</SelectItem>
+              <SelectItem value="Allocated">Allocated</SelectItem>
+              <SelectItem value="Reserved">Reserved</SelectItem>
+              <SelectItem value="Under Maintenance">Under Maintenance</SelectItem>
+              <SelectItem value="Lost">Lost</SelectItem>
+              <SelectItem value="Retired">Retired</SelectItem>
+              <SelectItem value="Disposed">Disposed</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -1161,21 +1272,24 @@ function AssetsScreen({ assets, onOpenAllocate, onOpenRegister, role }) {
                   key={a.id}
                   initial={{ opacity: 0, y: 6 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.02, duration: 0.3 }}
-                  className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors"
+                  transition={{ delay: Math.min(i * 0.02, 0.2), duration: 0.3 }}
+                  onClick={() => setSelectedAsset(a)}
+                  className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors cursor-pointer"
                 >
                   <td className="px-4 py-3 font-mono text-xs font-medium text-sky-500">{a.tag}</td>
                   <td className="px-4 py-3 font-medium">{a.name}</td>
                   <td className="px-4 py-3 hidden md:table-cell text-muted-foreground">{a.category}</td>
                   <td className="px-4 py-3"><StatusChip status={a.status} /></td>
                   <td className="px-4 py-3 hidden lg:table-cell text-muted-foreground">
-                    <span className="inline-flex items-center gap-1"><MapPin className="w-3 h-3" />{a.location}</span>
+                    <span className="inline-flex items-center gap-1"><MapPin className="w-3 h-3" />{a.location || '—'}</span>
                   </td>
                   <td className="px-4 py-3 hidden xl:table-cell text-muted-foreground">{a.allocatedTo ?? '—'}</td>
                   <td className="px-4 py-3 text-right">
-                    <Button onClick={() => onOpenAllocate(a)} size="sm" variant="outline" className="h-8 text-xs rounded-md border-border">
-                      Allocate <ChevronRight className="w-3 h-3 ml-1" />
-                    </Button>
+                    {(isAdmin || a.is_shared_bookable) && (
+                      <Button onClick={(e) => { e.stopPropagation(); onOpenAllocate(a); }} size="sm" variant="outline" className="h-8 text-xs rounded-md border-border">
+                        {isAdmin ? (a.status === 'Allocated' ? 'Transfer' : 'Allocate') : 'Book'} <ChevronRight className="w-3 h-3 ml-1" />
+                      </Button>
+                    )}
                   </td>
                 </motion.tr>
               ))}
@@ -1188,14 +1302,29 @@ function AssetsScreen({ assets, onOpenAllocate, onOpenRegister, role }) {
           </table>
         </div>
       </Card>
+      
+      <AssetDetailsDialog 
+        asset={selectedAsset} 
+        open={!!selectedAsset} 
+        onClose={() => setSelectedAsset(null)} 
+        onOpenAllocate={onOpenAllocate}
+        isAdmin={isAdmin}
+      />
     </div>
   )
 }
 
 /* ---------------- Allocate dialog ---------------- */
 
-function AllocateDialog({ asset, onClose, onAllocate, onRaiseTransfer }) {
-  const [target, setTarget] = useState(EMPLOYEES[0].id)
+function AllocateDialog({ asset, profiles = [], onClose, onAllocate, onRaiseTransfer }) {
+  const [target, setTarget] = useState('')
+  
+  useEffect(() => {
+    if (asset && profiles.length > 0 && !target) {
+      setTarget(profiles[0].id)
+    }
+  }, [asset, profiles])
+
   if (!asset) return null
   const isConflict = asset.status === 'allocated'
   const isMaintenance = asset.status === 'maintenance'
@@ -1229,8 +1358,8 @@ function AllocateDialog({ asset, onClose, onAllocate, onRaiseTransfer }) {
               <Select value={target} onValueChange={setTarget}>
                 <SelectTrigger className="h-11 rounded-lg"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {EMPLOYEES.filter((e) => e.name !== asset.allocatedTo).map((e) => (
-                    <SelectItem key={e.id} value={e.id}>{e.name} — {e.dept}</SelectItem>
+                  {profiles.filter((e) => e.name !== asset.allocatedTo).map((e) => (
+                    <SelectItem key={e.id} value={e.id}>{e.name} {e.department?.name ? `— ${e.department.name}` : ''}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -1238,7 +1367,7 @@ function AllocateDialog({ asset, onClose, onAllocate, onRaiseTransfer }) {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={onClose} className="rounded-lg">Cancel</Button>
-              <Button className="bg-amber-500 hover:bg-amber-600 text-white rounded-lg" onClick={() => { const to = EMPLOYEES.find((e) => e.id === target); onRaiseTransfer(asset, to); onClose() }}>
+              <Button className="bg-amber-500 hover:bg-amber-600 text-white rounded-lg" onClick={() => { onRaiseTransfer(asset, target); onClose() }}>
                 <ArrowLeftRight className="w-4 h-4 mr-1.5" /> Raise Transfer Request
               </Button>
             </DialogFooter>
@@ -1261,14 +1390,14 @@ function AllocateDialog({ asset, onClose, onAllocate, onRaiseTransfer }) {
               <Select value={target} onValueChange={setTarget}>
                 <SelectTrigger className="h-11 rounded-lg"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {EMPLOYEES.map((e) => <SelectItem key={e.id} value={e.id}>{e.name} — {e.dept}</SelectItem>)}
+                  {profiles.map((e) => <SelectItem key={e.id} value={e.id}>{e.name} {e.department?.name ? `— ${e.department.name}` : ''}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Textarea placeholder="Purpose / notes…" className="rounded-lg" rows={3} />
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={onClose} className="rounded-lg">Cancel</Button>
-              <Button className="bg-sky-500 hover:bg-sky-600 text-white rounded-lg active:scale-[0.98] transition-transform" onClick={() => { const to = EMPLOYEES.find((e) => e.id === target); onAllocate(asset, to); onClose() }}>
+              <Button className="bg-sky-500 hover:bg-sky-600 text-white rounded-lg active:scale-[0.98] transition-transform" onClick={() => { onAllocate(asset, target); onClose() }}>
                 <UserPlus className="w-4 h-4 mr-1.5" /> Confirm Allocation
               </Button>
             </DialogFooter>
@@ -1479,11 +1608,10 @@ function BookingsScreen({ bookings, onBook }) {
 
 /* ---------------- Maintenance ---------------- */
 
-function MaintenanceScreen({ tickets, setTickets, onRaise }) {
+function MaintenanceScreen({ tickets, onMoveTicket, onRaise }) {
   const [dragging, setDragging] = useState(null)
   const move = (id, toStatus) => {
-    setTickets((prev) => prev.map((t) => (t.id === id ? { ...t, status: toStatus } : t)))
-    toast.success('Ticket moved to ' + KANBAN_COLS.find((c) => c.key === toStatus).label)
+    onMoveTicket(id, toStatus)
   }
   return (
     <div className="p-6 lg:p-8 space-y-6 max-w-[1600px] mx-auto">
@@ -1776,7 +1904,77 @@ function LogsScreen() {
 
 /* ---------------- Org ---------------- */
 
-function OrgScreen() {
+function OrgScreen({ onDataChanged }) {
+  const [departments, setDepartments] = useState([])
+  const [profiles, setProfiles] = useState([])
+  const [categories, setCategories] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [addDeptOpen, setAddDeptOpen] = useState(false)
+  const [addCatOpen, setAddCatOpen] = useState(false)
+  const [inviteOpen, setInviteOpen] = useState(false)
+
+  const loadData = async () => {
+    setLoading(true)
+    const [deptRes, profRes, catRes] = await Promise.all([
+      supabase.from('departments').select('*, head:profiles!head_id(id, name), profiles!profiles_department_id_fkey(count)').order('name'),
+      supabase.from('profiles').select('*, department:departments!profiles_department_id_fkey(name)').order('name'),
+      supabase.from('asset_categories').select('*').order('name')
+    ])
+    setDepartments(deptRes.data || [])
+    setProfiles(profRes.data || [])
+    setCategories(catRes.data || [])
+    setLoading(false)
+  }
+
+  useEffect(() => {
+    loadData()
+  }, [])
+
+  const handleAddDept = async (deptData) => {
+    const { data, error } = await supabase.from('departments').insert([deptData]).select()
+    if (error) {
+      toast.error('Failed to create department: ' + error.message)
+      return false
+    }
+    toast.success('Department created')
+    loadData()
+    if (onDataChanged) onDataChanged()
+    setAddDeptOpen(false)
+    return true
+  }
+
+  const handleAddCat = async (catData) => {
+    const { data, error } = await supabase.from('asset_categories').insert([catData]).select()
+    if (error) {
+      toast.error('Failed to create category: ' + error.message)
+      return false
+    }
+    toast.success('Category created')
+    loadData()
+    if (onDataChanged) onDataChanged()
+    setAddCatOpen(false)
+    return true
+  }
+
+  const handleInvite = async (empData) => {
+    const { data, error } = await supabase.from('profiles').insert([empData]).select()
+    if (error) {
+      toast.error('Failed to invite employee: ' + error.message)
+      return false
+    }
+    toast.success('Employee invited')
+    loadData()
+    if (onDataChanged) onDataChanged()
+    setInviteOpen(false)
+    return true
+  }
+
+  const getInitials = (name) => {
+    if (!name) return '?'
+    const parts = name.split(' ')
+    return parts.length > 1 ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase() : name.substring(0, 2).toUpperCase()
+  }
+
   return (
     <div className="p-6 lg:p-8 space-y-6 max-w-[1200px] mx-auto">
       <div>
@@ -1793,61 +1991,102 @@ function OrgScreen() {
           <Card className="rounded-2xl border-border p-5 bg-card">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold">Hierarchy</h3>
-              <Button size="sm" className="bg-sky-500 hover:bg-sky-600 text-white rounded-lg"><Plus className="w-3.5 h-3.5 mr-1" /> Add Dept</Button>
+              <Button size="sm" className="bg-sky-500 hover:bg-sky-600 text-white rounded-lg" onClick={() => setAddDeptOpen(true)}>
+                <Plus className="w-3.5 h-3.5 mr-1" /> Add Dept
+              </Button>
             </div>
             <div className="space-y-2">
-              {DEPARTMENTS.map((d) => (
+              {loading ? <div className="text-sm text-muted-foreground p-4 text-center">Loading departments...</div> : departments.map((d) => (
                 <div key={d.id} className="rounded-xl border border-border p-3 flex items-center gap-3">
                   <div className="w-9 h-9 rounded-lg bg-sky-500/10 text-sky-500 flex items-center justify-center"><Building2 className="w-4 h-4" /></div>
-                  <div className="flex-1"><div className="text-sm font-medium">{d.name}</div><div className="text-xs text-muted-foreground">Head: {d.head}</div></div>
-                  <Badge variant="outline" className="border-border">{d.members} members</Badge>
+                  <div className="flex-1">
+                    <div className="text-sm font-medium">{d.name} <Badge variant={d.status === 'Active' ? 'outline' : 'secondary'} className="ml-2 text-[10px]">{d.status}</Badge></div>
+                    <div className="text-xs text-muted-foreground">Head: {d.head?.name || 'Unassigned'}</div>
+                  </div>
+                  <Badge variant="outline" className="border-border">{d.profiles?.[0]?.count || 0} members</Badge>
                 </div>
               ))}
+              {departments.length === 0 && !loading && <div className="text-sm text-muted-foreground p-4 text-center">No departments yet.</div>}
             </div>
           </Card>
+          
+          <AddDepartmentDialog 
+            open={addDeptOpen} 
+            onClose={() => setAddDeptOpen(false)} 
+            onAdd={handleAddDept}
+            profiles={profiles}
+            departments={departments}
+          />
         </TabsContent>
         <TabsContent value="categories" className="mt-4">
           <Card className="rounded-2xl border-border p-5 bg-card">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold">Asset Categories & Custom Fields</h3>
-              <Button size="sm" className="bg-sky-500 hover:bg-sky-600 text-white rounded-lg"><Plus className="w-3.5 h-3.5 mr-1" /> New Category</Button>
+              <Button size="sm" className="bg-sky-500 hover:bg-sky-600 text-white rounded-lg" onClick={() => setAddCatOpen(true)}>
+                <Plus className="w-3.5 h-3.5 mr-1" /> New Category
+              </Button>
             </div>
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {CATEGORIES.map((c) => (
-                <div key={c} className="rounded-xl border border-border p-4 hover:bg-muted/30 transition-colors">
+              {loading ? <div className="text-sm text-muted-foreground p-4 text-center col-span-full">Loading categories...</div> : categories.map((c) => (
+                <div key={c.id} className="rounded-xl border border-border p-4 hover:bg-muted/30 transition-colors">
                   <div className="flex items-center gap-2 mb-2">
                     <div className="w-8 h-8 rounded-lg bg-sky-500/10 text-sky-500 flex items-center justify-center"><Layers className="w-3.5 h-3.5" /></div>
-                    <div className="font-medium">{c}</div>
+                    <div className="font-medium">{c.name}</div>
                   </div>
-                  <div className="text-xs text-muted-foreground">Custom fields: Serial, Warranty, Condition</div>
+                  <div className="text-xs text-muted-foreground">
+                    {c.metadata_schema?.fields?.length ? `Custom fields: ${c.metadata_schema.fields.join(', ')}` : 'No custom fields defined'}
+                  </div>
                 </div>
               ))}
+              {categories.length === 0 && !loading && <div className="text-sm text-muted-foreground p-4 text-center col-span-full">No categories yet.</div>}
             </div>
           </Card>
+          
+          <AddCategoryDialog 
+            open={addCatOpen} 
+            onClose={() => setAddCatOpen(false)} 
+            onAdd={handleAddCat}
+          />
         </TabsContent>
         <TabsContent value="employees" className="mt-4">
           <Card className="rounded-2xl border-border p-5 bg-card">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold">Employee Directory</h3>
-              <Button size="sm" className="bg-sky-500 hover:bg-sky-600 text-white rounded-lg"><Plus className="w-3.5 h-3.5 mr-1" /> Invite</Button>
+              <Button size="sm" className="bg-sky-500 hover:bg-sky-600 text-white rounded-lg" onClick={() => setInviteOpen(true)}>
+                <Plus className="w-3.5 h-3.5 mr-1" /> Invite
+              </Button>
             </div>
             <div className="space-y-2">
-              {EMPLOYEES.map((e) => (
+              {loading ? <div className="text-sm text-muted-foreground p-4 text-center">Loading employees...</div> : profiles.map((e) => (
                 <div key={e.id} className="rounded-xl border border-border p-3 flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-sky-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold">{e.avatar}</div>
-                  <div className="flex-1"><div className="text-sm font-medium">{e.name}</div><div className="text-xs text-muted-foreground">{e.dept}</div></div>
+                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-sky-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold">
+                    {getInitials(e.name)}
+                  </div>
+                  <div className="flex-1">
+                    <div className="text-sm font-medium">{e.name}</div>
+                    <div className="text-xs text-muted-foreground">{e.department?.name || 'Unassigned'}</div>
+                  </div>
                   <Select defaultValue={e.role}>
-                    <SelectTrigger className="w-32 h-8 rounded-md text-xs"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="w-36 h-8 rounded-md text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="Admin">Admin</SelectItem>
-                      <SelectItem value="Manager">Manager</SelectItem>
+                      <SelectItem value="Asset Manager">Asset Manager</SelectItem>
+                      <SelectItem value="Department Head">Department Head</SelectItem>
                       <SelectItem value="Employee">Employee</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               ))}
+              {profiles.length === 0 && !loading && <div className="text-sm text-muted-foreground p-4 text-center">No employees yet.</div>}
             </div>
           </Card>
+          
+          <InviteEmployeeDialog 
+            open={inviteOpen} 
+            onClose={() => setInviteOpen(false)} 
+            onInvite={handleInvite}
+            departments={departments}
+          />
         </TabsContent>
       </Tabs>
     </div>
@@ -1856,43 +2095,231 @@ function OrgScreen() {
 
 /* ---------------- Register + Maintenance dialogs ---------------- */
 
-function RegisterAssetDialog({ open, onClose, onAdd }) {
+function RegisterAssetDialog({ open, onClose, onAdd, categories = [] }) {
   const [name, setName] = useState('')
-  const [category, setCategory] = useState('Laptop')
+  const [tag, setTag] = useState('')
+  const [categoryId, setCategoryId] = useState('none')
   const [serial, setSerial] = useState('')
-  const [location, setLocation] = useState('HQ - IT Store')
-  const submit = () => {
-    if (!name || !serial) { toast.error('Name & serial are required.'); return }
-    const tag = 'AF-' + String(600 + Math.floor(Math.random() * 300)).padStart(4, '0')
-    onAdd({ id: 'a' + Date.now(), tag, name, category, serial, location, status: 'available', allocatedTo: null, dept: null, since: null })
-    toast.success(`Registered ${tag} — ${name}`)
-    setName(''); setSerial(''); onClose()
+  const [location, setLocation] = useState('')
+  const [acqDate, setAcqDate] = useState('')
+  const [acqCost, setAcqCost] = useState('')
+  const [condition, setCondition] = useState('New')
+  const [photoUrl, setPhotoUrl] = useState('')
+  const [isBookable, setIsBookable] = useState(false)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (open) {
+      setTag('AF-' + String(Math.floor(Math.random() * 10000)).padStart(4, '0'))
+    }
+  }, [open])
+
+  const submit = async () => {
+    if (!name || !serial || categoryId === 'none') { toast.error('Name, Category, and Serial are required.'); return }
+    setLoading(true)
+    const success = await onAdd({
+      asset_tag: tag,
+      name,
+      category_id: categoryId,
+      serial_number: serial,
+      location,
+      acquisition_date: acqDate || null,
+      acquisition_cost: acqCost ? parseFloat(acqCost) : null,
+      condition,
+      photo_url: photoUrl || null,
+      is_shared_bookable: isBookable,
+      status: 'Available'
+    })
+    setLoading(false)
+    if (success) {
+      setName(''); setCategoryId('none'); setSerial(''); setLocation(''); setAcqDate(''); setAcqCost(''); setPhotoUrl(''); setIsBookable(false); setCondition('New');
+    }
   }
+
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-md rounded-2xl">
-        <DialogHeader>
-          <DialogTitle>Register New Asset</DialogTitle>
-          <DialogDescription>A unique tag will be generated automatically.</DialogDescription>
-        </DialogHeader>
-        <div className="space-y-3">
-          <div><label className="text-sm font-medium mb-1.5 block">Name</label><Input value={name} onChange={(e) => setName(e.target.value)} placeholder='MacBook Pro 16"' className="h-10 rounded-lg" /></div>
-          <div className="grid grid-cols-2 gap-3">
+      <DialogContent className="sm:max-w-[500px] rounded-2xl p-0 overflow-hidden border-border bg-card max-h-[90vh] overflow-y-auto">
+        <div className="p-6 pb-4 border-b border-border bg-muted/20">
+          <DialogTitle className="text-xl font-bold tracking-tight">Register New Asset</DialogTitle>
+          <p className="text-sm text-muted-foreground mt-1">Fill out the details to add a new asset to the registry.</p>
+        </div>
+        <div className="p-6 space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div><label className="text-sm font-medium mb-1.5 block">Asset Tag (Auto-Generated)</label><Input value={tag} disabled className="h-10 rounded-lg bg-muted/50 font-mono text-sky-500 font-medium" /></div>
+            <div><label className="text-sm font-medium mb-1.5 block">Asset Name *</label><Input value={name} onChange={(e) => setName(e.target.value)} placeholder='e.g. MacBook Pro 16"' className="h-10 rounded-lg" /></div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-sm font-medium mb-1.5 block">Category</label>
-              <Select value={category} onValueChange={setCategory}>
-                <SelectTrigger className="h-10 rounded-lg"><SelectValue /></SelectTrigger>
-                <SelectContent>{CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+              <label className="text-sm font-medium mb-1.5 block">Category *</label>
+              <Select value={categoryId} onValueChange={setCategoryId}>
+                <SelectTrigger className="h-10 rounded-lg"><SelectValue placeholder="Select Category" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none" disabled>Select Category</SelectItem>
+                  {categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                </SelectContent>
               </Select>
             </div>
-            <div><label className="text-sm font-medium mb-1.5 block">Serial</label><Input value={serial} onChange={(e) => setSerial(e.target.value)} placeholder="C02XF1YZLVDL" className="h-10 rounded-lg" /></div>
+            <div><label className="text-sm font-medium mb-1.5 block">Serial Number *</label><Input value={serial} onChange={(e) => setSerial(e.target.value)} placeholder="e.g. C02XF1YZLVDL" className="h-10 rounded-lg" /></div>
           </div>
-          <div><label className="text-sm font-medium mb-1.5 block">Location</label><Input value={location} onChange={(e) => setLocation(e.target.value)} className="h-10 rounded-lg" /></div>
+          <div className="grid grid-cols-2 gap-4">
+            <div><label className="text-sm font-medium mb-1.5 block">Acquisition Date</label><Input type="date" value={acqDate} onChange={(e) => setAcqDate(e.target.value)} className="h-10 rounded-lg" /></div>
+            <div><label className="text-sm font-medium mb-1.5 block">Acquisition Cost</label><Input type="number" step="0.01" value={acqCost} onChange={(e) => setAcqCost(e.target.value)} placeholder="e.g. 1999.00" className="h-10 rounded-lg" /></div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Condition</label>
+              <Select value={condition} onValueChange={setCondition}>
+                <SelectTrigger className="h-10 rounded-lg"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="New">New</SelectItem>
+                  <SelectItem value="Good">Good</SelectItem>
+                  <SelectItem value="Fair">Fair</SelectItem>
+                  <SelectItem value="Poor">Poor</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div><label className="text-sm font-medium mb-1.5 block">Location</label><Input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g. HQ - IT Store" className="h-10 rounded-lg" /></div>
+          </div>
+          <div><label className="text-sm font-medium mb-1.5 block">Photo URL (Optional)</label><Input type="url" value={photoUrl} onChange={(e) => setPhotoUrl(e.target.value)} placeholder="https://..." className="h-10 rounded-lg" /></div>
+          
+          <label className="flex items-center gap-3 p-3 rounded-lg border border-border bg-muted/20 cursor-pointer">
+            <input type="checkbox" checked={isBookable} onChange={(e) => setIsBookable(e.target.checked)} className="w-4 h-4 rounded border-border" />
+            <div className="flex-1">
+              <div className="text-sm font-medium">Shared / Bookable Resource</div>
+              <div className="text-xs text-muted-foreground">Allow employees to book this asset temporarily.</div>
+            </div>
+          </label>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose} className="rounded-lg">Cancel</Button>
-          <Button onClick={submit} className="bg-sky-500 hover:bg-sky-600 text-white rounded-lg">Register</Button>
-        </DialogFooter>
+        <div className="p-6 pt-0 border-t border-border mt-2 bg-muted/10 flex justify-end gap-3 rounded-b-2xl">
+          <Button variant="outline" onClick={onClose} className="rounded-lg mt-6">Cancel</Button>
+          <Button onClick={submit} disabled={loading} className="bg-sky-500 hover:bg-sky-600 text-white rounded-lg mt-6">
+            {loading ? 'Registering...' : 'Register Asset'}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function InviteEmployeeDialog({ open, onClose, onInvite, departments }) {
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [role, setRole] = useState('Employee')
+  const [departmentId, setDepartmentId] = useState('none')
+  const [loading, setLoading] = useState(false)
+
+  const handleSubmit = async () => {
+    if (!name.trim() || !email.trim()) return
+    setLoading(true)
+    const success = await onInvite({ 
+      name, 
+      email, 
+      role, 
+      department_id: departmentId === 'none' ? null : departmentId,
+      status: 'Active'
+    })
+    setLoading(false)
+    if (success) {
+      setName('')
+      setEmail('')
+      setRole('Employee')
+      setDepartmentId('none')
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(val) => !val && onClose()}>
+      <DialogContent className="sm:max-w-[425px] rounded-2xl p-0 overflow-hidden border-border bg-card">
+        <div className="p-6 pb-4 border-b border-border bg-muted/20">
+          <DialogTitle className="text-xl font-bold tracking-tight">Invite Employee</DialogTitle>
+          <p className="text-sm text-muted-foreground mt-1">Add a new employee to the directory.</p>
+        </div>
+        <div className="p-6 space-y-4">
+          <div>
+            <label className="text-sm font-medium mb-1.5 block">Full Name</label>
+            <Input className="h-10 rounded-lg" placeholder="e.g. John Doe" value={name} onChange={e => setName(e.target.value)} />
+          </div>
+          <div>
+            <label className="text-sm font-medium mb-1.5 block">Email Address</label>
+            <Input type="email" className="h-10 rounded-lg" placeholder="e.g. john@example.com" value={email} onChange={e => setEmail(e.target.value)} />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Role</label>
+              <Select value={role} onValueChange={setRole}>
+                <SelectTrigger className="h-10 rounded-lg"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Admin">Admin</SelectItem>
+                  <SelectItem value="Asset Manager">Asset Manager</SelectItem>
+                  <SelectItem value="Department Head">Department Head</SelectItem>
+                  <SelectItem value="Employee">Employee</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Department</label>
+              <Select value={departmentId} onValueChange={setDepartmentId}>
+                <SelectTrigger className="h-10 rounded-lg"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Unassigned</SelectItem>
+                  {departments.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+        <div className="p-6 pt-4 border-t border-border bg-muted/20 flex justify-end gap-2">
+          <Button variant="outline" className="rounded-xl h-10" onClick={onClose} disabled={loading}>Cancel</Button>
+          <Button className="bg-sky-500 hover:bg-sky-600 text-white rounded-xl h-10" onClick={handleSubmit} disabled={!name.trim() || !email.trim() || loading}>
+            {loading ? 'Inviting...' : 'Send Invite'}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function AddCategoryDialog({ open, onClose, onAdd }) {
+  const [name, setName] = useState('')
+  const [customFields, setCustomFields] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  const handleSubmit = async () => {
+    if (!name.trim()) return
+    setLoading(true)
+    const schema = customFields ? { fields: customFields.split(',').map(f => f.trim()).filter(Boolean) } : null
+    const success = await onAdd({ name, metadata_schema: schema })
+    setLoading(false)
+    if (success) {
+      setName('')
+      setCustomFields('')
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(val) => !val && onClose()}>
+      <DialogContent className="sm:max-w-[425px] rounded-2xl p-0 overflow-hidden border-border bg-card">
+        <div className="p-6 pb-4 border-b border-border bg-muted/20">
+          <DialogTitle className="text-xl font-bold tracking-tight">New Asset Category</DialogTitle>
+          <p className="text-sm text-muted-foreground mt-1">Define a new category and its specific attributes.</p>
+        </div>
+        <div className="p-6 space-y-5">
+          <div>
+            <label className="text-sm font-medium mb-1.5 block">Category Name</label>
+            <Input className="h-10 rounded-lg" placeholder="e.g. Server, Software License" value={name} onChange={e => setName(e.target.value)} />
+          </div>
+          <div>
+            <label className="text-sm font-medium mb-1.5 block">Custom Fields (Optional)</label>
+            <Input className="h-10 rounded-lg" placeholder="e.g. RAM, Storage, License Key" value={customFields} onChange={e => setCustomFields(e.target.value)} />
+            <p className="text-[10px] text-muted-foreground mt-1.5">Comma separated list of fields specific to this category.</p>
+          </div>
+        </div>
+        <div className="p-6 pt-4 border-t border-border bg-muted/20 flex justify-end gap-2">
+          <Button variant="outline" className="rounded-xl h-10" onClick={onClose} disabled={loading}>Cancel</Button>
+          <Button className="bg-sky-500 hover:bg-sky-600 text-white rounded-xl h-10" onClick={handleSubmit} disabled={!name.trim() || loading}>
+            {loading ? 'Creating...' : 'Create Category'}
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   )
@@ -1901,13 +2328,12 @@ function RegisterAssetDialog({ open, onClose, onAdd }) {
 function RaiseMaintenanceDialog({ open, onClose, assets, onRaise }) {
   const [assetId, setAssetId] = useState(assets[0]?.id ?? '')
   const [issue, setIssue] = useState('')
-  const [priority, setPriority] = useState('medium')
+  const [priority, setPriority] = useState('Medium')
   useEffect(() => { if (open && assets[0]) setAssetId(assets[0].id) }, [open, assets])
   const submit = () => {
     if (!issue.trim()) { toast.error('Please describe the issue.'); return }
     const asset = assets.find((a) => a.id === assetId)
-    onRaise({ id: 'm' + Date.now(), assetTag: asset.tag, assetName: asset.name, issue, priority, status: 'pending', raisedBy: 'Priya Shah', date: new Date().toISOString().slice(0, 10) })
-    toast.success('Maintenance request submitted')
+    onRaise(asset, issue, priority)
     setIssue(''); onClose()
   }
   return (
@@ -1931,9 +2357,9 @@ function RaiseMaintenanceDialog({ open, onClose, assets, onRaise }) {
             <Select value={priority} onValueChange={setPriority}>
               <SelectTrigger className="h-10 rounded-lg"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="high">High</SelectItem>
-                <SelectItem value="medium">Medium</SelectItem>
-                <SelectItem value="low">Low</SelectItem>
+                <SelectItem value="High">High</SelectItem>
+                <SelectItem value="Medium">Medium</SelectItem>
+                <SelectItem value="Low">Low</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -1949,6 +2375,77 @@ function RaiseMaintenanceDialog({ open, onClose, assets, onRaise }) {
 
 /* ---------------- App root ---------------- */
 
+function AddDepartmentDialog({ open, onClose, onAdd, profiles, departments }) {
+  const [name, setName] = useState('')
+  const [headId, setHeadId] = useState('none')
+  const [parentId, setParentId] = useState('none')
+  const [status, setStatus] = useState('Active')
+
+  useEffect(() => {
+    if (open) {
+      setName(''); setHeadId('none'); setParentId('none'); setStatus('Active')
+    }
+  }, [open])
+
+  const submit = async () => {
+    if (!name.trim()) { toast.error('Name is required'); return }
+    await onAdd({
+      name,
+      head_id: headId === 'none' ? null : headId,
+      parent_department_id: parentId === 'none' ? null : parentId,
+      status
+    })
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-md rounded-2xl">
+        <DialogHeader>
+          <DialogTitle>Add Department</DialogTitle>
+          <DialogDescription>Create a new department in the organization.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div><label className="text-sm font-medium mb-1.5 block">Name</label><Input value={name} onChange={(e) => setName(e.target.value)} placeholder='Engineering' className="h-10 rounded-lg" /></div>
+          <div>
+            <label className="text-sm font-medium mb-1.5 block">Department Head (Optional)</label>
+            <Select value={headId} onValueChange={setHeadId}>
+              <SelectTrigger className="h-10 rounded-lg"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Unassigned</SelectItem>
+                {profiles.map(p => <SelectItem key={p.id} value={p.id}>{p.name} ({p.role})</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <label className="text-sm font-medium mb-1.5 block">Parent Department (Optional)</label>
+            <Select value={parentId} onValueChange={setParentId}>
+              <SelectTrigger className="h-10 rounded-lg"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">None (Top Level)</SelectItem>
+                {departments.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <label className="text-sm font-medium mb-1.5 block">Status</label>
+            <Select value={status} onValueChange={setStatus}>
+              <SelectTrigger className="h-10 rounded-lg"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Active">Active</SelectItem>
+                <SelectItem value="Inactive">Inactive</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} className="rounded-lg">Cancel</Button>
+          <Button onClick={submit} className="bg-sky-500 hover:bg-sky-600 text-white rounded-lg">Create</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 function App() {
   const [view, setView] = useState('auth') // 'auth' | 'app'
   const [authMode, setAuthMode] = useState('login')
@@ -1958,19 +2455,82 @@ function App() {
   const [theme, setTheme] = useState('light')
   const [mobileOpen, setMobileOpen] = useState(false)
 
-  const [assets, setAssets] = useState(SEED_ASSETS)
-  const [bookings, setBookings] = useState(SEED_BOOKINGS)
-  const [tickets, setTickets] = useState(SEED_MAINTENANCE)
+  const [assets, setAssets] = useState([])
+  const [categories, setCategories] = useState([])
+  const [profiles, setProfiles] = useState([])
+  const [bookings, setBookings] = useState([])
+  const [tickets, setTickets] = useState([])
   const [transfers, setTransfers] = useState([])
+  const [loadingApp, setLoadingApp] = useState(true)
 
   const [allocateAsset, setAllocateAsset] = useState(null)
   const [registerOpen, setRegisterOpen] = useState(false)
   const [maintOpen, setMaintOpen] = useState(false)
 
+  const loadGlobalData = async () => {
+    setLoadingApp(true)
+    const [assetsRes, catRes, allocRes, profRes, maintRes] = await Promise.all([
+      supabase.from('assets').select('*, category:asset_categories(name)').order('created_at', { ascending: false }),
+      supabase.from('asset_categories').select('*').order('name'),
+      supabase.from('allocations').select('*, employee:profiles!allocations_assigned_to_employee_id_fkey(name, department:departments!profiles_department_id_fkey(name))').eq('status', 'Active'),
+      supabase.from('profiles').select('*, department:departments!profiles_department_id_fkey(name)').order('name'),
+      supabase.from('maintenance_requests').select('*, asset:assets(name, asset_tag), profile:profiles(name)').order('created_at', { ascending: false })
+    ])
+    
+    setCategories(catRes.data || [])
+    setProfiles(profRes.data || [])
+    
+    const mappedTickets = (maintRes.data || []).map(t => ({
+      id: t.id,
+      assetTag: t.asset?.asset_tag,
+      assetName: t.asset?.name,
+      issue: t.issue_description,
+      priority: t.priority,
+      status: t.status,
+      raisedBy: t.profile?.name || 'Unknown',
+      date: new Date(t.created_at).toISOString().slice(0, 10),
+      tech: t.assigned_technician
+    }))
+    setTickets(mappedTickets)
+
+    const mappedAssets = (assetsRes.data || []).map(a => {
+      const activeAlloc = (allocRes.data || []).find(al => al.asset_id === a.id)
+      return {
+        ...a,
+        tag: a.asset_tag,
+        serial: a.serial_number,
+        acquisitionDate: a.acquisition_date,
+        acquisitionCost: a.acquisition_cost,
+        category: a.category?.name || 'Unknown',
+        allocatedTo: activeAlloc ? activeAlloc.employee?.name : null,
+        dept: activeAlloc ? activeAlloc.employee?.department?.name : null,
+        since: activeAlloc ? activeAlloc.allocation_date : null
+      }
+    })
+    setAssets(mappedAssets)
+    setLoadingApp(false)
+  }
+
+  useEffect(() => {
+    loadGlobalData()
+  }, [])
+
   useEffect(() => {
     if (theme === 'dark') document.documentElement.classList.add('dark')
     else document.documentElement.classList.remove('dark')
   }, [theme])
+
+  const handleRegisterAsset = async (newAssetData) => {
+    const { data, error } = await supabase.from('assets').insert([newAssetData]).select()
+    if (error) {
+      toast.error('Failed to register: ' + error.message)
+      return false
+    }
+    toast.success(`Registered ${newAssetData.asset_tag} successfully`)
+    loadGlobalData()
+    setRegisterOpen(false)
+    return true
+  }
 
   // Safety: if the active screen isn't allowed for the current role, bounce to dashboard
   useEffect(() => {
@@ -1978,13 +2538,42 @@ function App() {
     if (view === 'app' && !allowed) setActive('dashboard')
   }, [active, role, view])
 
-  const doAllocate = (asset, employee) => {
-    setAssets((prev) => prev.map((a) => a.id === asset.id ? { ...a, status: 'allocated', allocatedTo: employee.name, dept: employee.dept, since: new Date().toISOString().slice(0, 10) } : a))
-    toast.success(`Allocated ${asset.tag} → ${employee.name}`)
+  const doAllocate = async (asset, profileId) => {
+    // End active allocations
+    const { error: updErr } = await supabase.from('allocations').update({ status: 'Returned', return_date: new Date().toISOString() }).eq('asset_id', asset.id).eq('status', 'Active')
+    if (updErr) console.error('Failed to end previous allocation:', updErr)
+    
+    // Insert new allocation
+    const { error } = await supabase.from('allocations').insert([{ asset_id: asset.id, assigned_to_employee_id: profileId, status: 'Active', allocation_date: new Date().toISOString(), allocated_by: profiles[0]?.id }])
+    if (error) return toast.error(error.message)
+    // Update asset status
+    await supabase.from('assets').update({ status: 'Allocated' }).eq('id', asset.id)
+    toast.success(`Allocated ${asset.tag}`)
+    loadGlobalData()
   }
-  const raiseTransfer = (asset, to) => {
-    setTransfers((prev) => [{ id: 'tr' + Date.now(), tag: asset.tag, name: asset.name, from: asset.allocatedTo, to: to.name }, ...prev])
-    toast.success(`Transfer request raised: ${asset.tag} → ${to.name}`)
+  const raiseTransfer = async (asset, toProfileId) => {
+    // For this MVP, raiseTransfer behaves exactly like doAllocate
+    await doAllocate(asset, toProfileId)
+  }
+
+  const raiseMaintenance = async (asset, issue, priority) => {
+    const { error } = await supabase.from('maintenance_requests').insert([{
+      asset_id: asset.id,
+      raised_by: profiles[0]?.id,
+      issue_description: issue,
+      priority,
+      status: 'Pending'
+    }])
+    if (error) return toast.error(error.message)
+    await supabase.from('assets').update({ status: 'Under Maintenance' }).eq('id', asset.id)
+    toast.success('Maintenance request submitted')
+    loadGlobalData()
+  }
+
+  const onMoveTicket = async (id, toStatus) => {
+    setTickets((prev) => prev.map((t) => (t.id === id ? { ...t, status: toStatus } : t)))
+    toast.success('Ticket moved to ' + toStatus)
+    await supabase.from('maintenance_requests').update({ status: toStatus }).eq('id', id)
   }
 
   const handleLogin = (user) => {
@@ -2036,23 +2625,23 @@ function App() {
                   if (k === 'book') setActive('bookings')
                   if (k === 'maintenance') setMaintOpen(true)
                 }} />}
-                {active === 'assets' && <AssetsScreen role={role} assets={assets} onOpenAllocate={setAllocateAsset} onOpenRegister={() => setRegisterOpen(true)} />}
+                {active === 'assets' && <AssetsScreen role={role} assets={assets} categories={categories} onOpenAllocate={setAllocateAsset} onOpenRegister={() => setRegisterOpen(true)} />}
                 {active === 'allocations' && <AllocationsScreen assets={assets} onOpenAllocate={setAllocateAsset} transfers={transfers} />}
                 {active === 'bookings' && <BookingsScreen bookings={bookings} onBook={(b) => setBookings((prev) => [...prev, b])} />}
-                {active === 'maintenance' && <MaintenanceScreen tickets={tickets} setTickets={setTickets} onRaise={() => setMaintOpen(true)} />}
+                {active === 'maintenance' && <MaintenanceScreen tickets={tickets} onMoveTicket={onMoveTicket} onRaise={() => setMaintOpen(true)} />}
                 {active === 'audit' && <AuditScreen assets={assets} />}
                 {active === 'reports' && <ReportsScreen />}
                 {active === 'logs' && <LogsScreen />}
-                {active === 'org' && <OrgScreen />}
+                {active === 'org' && <OrgScreen onDataChanged={loadGlobalData} />}
               </motion.div>
             </AnimatePresence>
           </main>
         </div>
       </div>
 
-      <AllocateDialog asset={allocateAsset} onClose={() => setAllocateAsset(null)} onAllocate={doAllocate} onRaiseTransfer={raiseTransfer} />
-      <RegisterAssetDialog open={registerOpen} onClose={() => setRegisterOpen(false)} onAdd={(a) => setAssets((prev) => [a, ...prev])} />
-      <RaiseMaintenanceDialog open={maintOpen} onClose={() => setMaintOpen(false)} assets={assets} onRaise={(t) => setTickets((prev) => [t, ...prev])} />
+      <AllocateDialog asset={allocateAsset} profiles={profiles} onClose={() => setAllocateAsset(null)} onAllocate={doAllocate} onRaiseTransfer={raiseTransfer} />
+      <RegisterAssetDialog open={registerOpen} onClose={() => setRegisterOpen(false)} onAdd={handleRegisterAsset} categories={categories} />
+      <RaiseMaintenanceDialog open={maintOpen} onClose={() => setMaintOpen(false)} assets={assets} onRaise={raiseMaintenance} />
     </div>
   )
 }
