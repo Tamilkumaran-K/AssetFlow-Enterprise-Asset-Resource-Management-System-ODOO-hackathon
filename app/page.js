@@ -1508,22 +1508,40 @@ const formatTime = (t) => {
   return `${h}:${m}`
 }
 
-function BookingsScreen({ bookings, onBook }) {
-  const [asset, setAsset] = useState('AF-0202')
+function BookingsScreen({ bookings, onBook, assets }) {
+  const bookableAssets = assets.filter(a => a.is_shared_bookable)
+  const defaultAssetTag = bookableAssets.length > 0 ? bookableAssets[0].tag : ''
+  const [assetTag, setAssetTag] = useState(defaultAssetTag)
   const [showForm, setShowForm] = useState(false)
-  const [dayIdx, setDayIdx] = useState(1)
+  const [dayIdx, setDayIdx] = useState(1) // 1 = Mon ... 5 = Fri
   const [startH, setStartH] = useState(11)
   const [endH, setEndH] = useState(12)
   const [title, setTitle] = useState('')
 
-  const dayBookings = bookings.filter((b) => b.assetTag === asset)
+  const dayBookings = bookings.filter((b) => b.assetTag === assetTag)
   const hasOverlap = () => dayBookings.some((b) => b.day === dayIdx && !(endH <= b.start || startH >= b.end))
 
   const submit = () => {
     if (hasOverlap()) { toast.error('Time slot overlaps with an existing booking.'); return }
     if (endH <= startH) { toast.error('End time must be after start time.'); return }
-    onBook({ id: 'b' + Date.now(), assetTag: asset, assetName: 'Selected resource', day: dayIdx, start: startH, end: endH, user: 'Priya Shah', title: title || 'Booking' })
-    toast.success('Booking confirmed')
+    
+    const selectedAsset = bookableAssets.find(a => a.tag === assetTag)
+    if (!selectedAsset) { toast.error('Asset not found.'); return }
+
+    // Calculate real Dates for the current week's chosen day
+    const now = new Date()
+    const currentDayOfWeek = now.getDay() === 0 ? 7 : now.getDay() // 1 = Mon, 7 = Sun
+    const diffToTargetDay = dayIdx - currentDayOfWeek
+    
+    const start_time = new Date(now)
+    start_time.setDate(now.getDate() + diffToTargetDay)
+    start_time.setHours(Math.floor(startH), (startH % 1) * 60, 0, 0)
+    
+    const end_time = new Date(now)
+    end_time.setDate(now.getDate() + diffToTargetDay)
+    end_time.setHours(Math.floor(endH), (endH % 1) * 60, 0, 0)
+
+    onBook(selectedAsset.id, start_time, end_time, title)
     setShowForm(false); setTitle('')
   }
 
@@ -1535,13 +1553,14 @@ function BookingsScreen({ bookings, onBook }) {
           <p className="text-muted-foreground text-sm mt-1">Book meeting rooms, projectors and vehicles conflict-free.</p>
         </div>
         <div className="flex gap-2">
-          <Select value={asset} onValueChange={setAsset}>
-            <SelectTrigger className="w-56 h-10 rounded-lg"><SelectValue /></SelectTrigger>
+          <Select value={assetTag} onValueChange={setAssetTag}>
+            <SelectTrigger className="w-56 h-10 rounded-lg"><SelectValue placeholder="Select a resource..." /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="AF-0202">Room B2 — Boardroom</SelectItem>
-              <SelectItem value="AF-0400">Room A1 — Focus Pod</SelectItem>
-              <SelectItem value="AF-0055">BenQ 4K Projector</SelectItem>
-              <SelectItem value="AF-0088">Toyota Innova</SelectItem>
+              {bookableAssets.length === 0 ? (
+                <SelectItem value="none" disabled>No bookable resources</SelectItem>
+              ) : (
+                bookableAssets.map(a => <SelectItem key={a.id} value={a.tag}>{a.name}</SelectItem>)
+              )}
             </SelectContent>
           </Select>
           <Button onClick={() => setShowForm(true)} className="bg-sky-500 hover:bg-sky-600 text-white rounded-lg h-10 active:scale-[0.98] transition-transform">
@@ -2608,13 +2627,14 @@ function App() {
 
   const loadGlobalData = async () => {
     setLoadingApp(true)
-    const [assetsRes, catRes, allocRes, profRes, maintRes, transRes] = await Promise.all([
+    const [assetsRes, catRes, allocRes, profRes, maintRes, transRes, bookingsRes] = await Promise.all([
       supabase.from('assets').select('*, category:asset_categories(name)').order('created_at', { ascending: false }),
       supabase.from('asset_categories').select('*').order('name'),
       supabase.from('allocations').select('*, employee:profiles!allocations_assigned_to_employee_id_fkey(name, department:departments!profiles_department_id_fkey(name))').eq('status', 'Active'),
       supabase.from('profiles').select('*, department:departments!profiles_department_id_fkey(name)').eq('status', 'Active').order('name'),
       supabase.from('maintenance_requests').select('*, asset:assets(name, asset_tag), profile:profiles(name)').order('created_at', { ascending: false }),
-      supabase.from('transfer_requests').select('*, from:profiles!transfer_requests_from_employee_id_fkey(name), to:profiles!transfer_requests_to_employee_id_fkey(name), asset:assets(name, asset_tag)').eq('status', 'Pending').order('created_at', { ascending: false })
+      supabase.from('transfer_requests').select('*, from:profiles!transfer_requests_from_employee_id_fkey(name), to:profiles!transfer_requests_to_employee_id_fkey(name), asset:assets(name, asset_tag)').eq('status', 'Pending').order('created_at', { ascending: false }),
+      supabase.from('bookings').select('*, profile:profiles!bookings_booked_by_fkey(name), asset:assets!bookings_asset_id_fkey(asset_tag, name)').in('status', ['Upcoming', 'Ongoing'])
     ])
     
     setCategories(catRes.data || [])
@@ -2646,6 +2666,25 @@ function App() {
     }))
     setTransfers(mappedTransfers)
 
+    const mappedBookings = (bookingsRes.data || []).map(b => {
+      const startD = new Date(b.start_time)
+      const endD = new Date(b.end_time)
+      const day = startD.getDay() === 0 ? 7 : startD.getDay() // 1 = Mon ... 7 = Sun
+      const startH = startD.getHours() + (startD.getMinutes() / 60)
+      const endH = endD.getHours() + (endD.getMinutes() / 60)
+      return {
+        id: b.id,
+        assetTag: b.asset?.asset_tag,
+        assetName: b.asset?.name,
+        day: day,
+        start: startH,
+        end: endH,
+        user: b.profile?.name || 'Unknown',
+        title: 'Booking' // Fallback title
+      }
+    })
+    setBookings(mappedBookings)
+
     const mappedAssets = (assetsRes.data || []).map(a => {
       const activeAlloc = (allocRes.data || []).find(al => al.asset_id === a.id)
       return {
@@ -2675,6 +2714,37 @@ function App() {
     if (theme === 'dark') document.documentElement.classList.add('dark')
     else document.documentElement.classList.remove('dark')
   }, [theme])
+
+  const handleAddBooking = async (assetId, startTime, endTime, title) => {
+    const { data, error } = await supabase.from('bookings').insert({
+      asset_id: assetId,
+      booked_by: profiles[0]?.id,
+      start_time: startTime.toISOString(),
+      end_time: endTime.toISOString(),
+      status: 'Upcoming'
+    }).select('*, profile:profiles!bookings_booked_by_fkey(name), asset:assets!bookings_asset_id_fkey(asset_tag, name)').single()
+
+    if (error) { toast.error(error.message); return }
+    
+    const startD = new Date(data.start_time)
+    const endD = new Date(data.end_time)
+    const day = startD.getDay() === 0 ? 7 : startD.getDay()
+    const startH = startD.getHours() + (startD.getMinutes() / 60)
+    const endH = endD.getHours() + (endD.getMinutes() / 60)
+    
+    const newBooking = {
+      id: data.id,
+      assetTag: data.asset?.asset_tag,
+      assetName: data.asset?.name,
+      day: day,
+      start: startH,
+      end: endH,
+      user: data.profile?.name,
+      title: title || 'Booking'
+    }
+    setBookings(prev => [...prev, newBooking])
+    toast.success('Booking confirmed')
+  }
 
   const handleRegisterAsset = async (newAssetData) => {
     const { data, error } = await supabase.from('assets').insert([newAssetData]).select()
@@ -2820,7 +2890,7 @@ function App() {
                 }} />}
                 {active === 'assets' && <AssetsScreen role={role} assets={assets} categories={categories} onOpenAllocate={setAllocateAsset} onOpenRegister={() => setRegisterOpen(true)} />}
                 {active === 'allocations' && <AllocationsScreen assets={assets} onOpenAllocate={setAllocateAsset} onOpenGenericAllocate={() => setGenericAllocateOpen(true)} transfers={transfers} onApproveTransfer={approveTransfer} onRejectTransfer={rejectTransfer} onReturnAsset={setReturnAsset} />}
-                {active === 'bookings' && <BookingsScreen bookings={bookings} onBook={(b) => setBookings((prev) => [...prev, b])} />}
+                {active === 'bookings' && <BookingsScreen bookings={bookings} assets={assets} onBook={handleAddBooking} />}
                 {active === 'maintenance' && <MaintenanceScreen tickets={tickets} onMoveTicket={onMoveTicket} onRaise={() => setMaintOpen(true)} />}
                 {active === 'audit' && <AuditScreen assets={assets} />}
                 {active === 'reports' && <ReportsScreen />}
