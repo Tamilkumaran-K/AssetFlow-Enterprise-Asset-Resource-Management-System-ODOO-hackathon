@@ -507,17 +507,19 @@ function AuthScreen({ onLogin, defaultMode = 'login' }) {
     if (mode === 'login') {
       if (email.trim().toLowerCase() === ADMIN_CREDS.email && password === ADMIN_CREDS.password) {
         toast.success('Welcome back, Admin')
-        onLogin({ role: 'admin', name: 'Priya Shah', email })
+        // isMockAdmin:true tells handleLogin to skip Supabase profile lookup
+        onLogin({ role: 'admin', name: 'Priya Shah', email, isMockAdmin: true })
       } else if (email && password) {
         toast.success('Signed in as Employee')
-        onLogin({ role: 'employee', name: email.split('@')[0] || 'Employee', email })
+        // isMockEmployee:true skips broken profile insert (no authUser.id available)
+        onLogin({ role: 'employee', name: email.split('@')[0] || 'Employee', email, isMockEmployee: true })
       } else {
         setError('Enter your email and password to continue.')
       }
     } else {
       if (!name || !email || !password) { setError('Please fill in every field to create your account.'); return }
       toast.success('Account created — signed in as Employee')
-      onLogin({ role: 'employee', name, email })
+      onLogin({ role: 'employee', name, email, isMockEmployee: true })
     }
   }
 
@@ -800,7 +802,10 @@ function Dashboard({ onQuick, onNavigate, user }) {
   useEffect(() => {
     async function load() {
       try {
-        const isPlaceholder = user?.isMockAdmin || !process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('your-supabase-project') || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY.includes('your-supabase')
+        const isPlaceholder = !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+          process.env.NEXT_PUBLIC_SUPABASE_URL.includes('your-supabase-project') ||
+          !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY.includes('your-supabase')
         if (isPlaceholder) {
           throw new Error('Supabase using placeholder credentials')
         }
@@ -1133,12 +1138,15 @@ function AssetDetailsDialog({ asset, open, onClose, onOpenAllocate, isAdmin, isM
     const fetchHistory = async () => {
       setLoading(true)
       try {
-        const isPlaceholder = isMockAdmin || !process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('your-supabase-project') || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY.includes('your-supabase')
+        const isPlaceholder = !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+          process.env.NEXT_PUBLIC_SUPABASE_URL.includes('your-supabase-project') ||
+          !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY.includes('your-supabase')
         if (isPlaceholder) {
           throw new Error('Placeholder credentials')
         }
         const [allocs, maints] = await Promise.all([
-          supabase.from('allocations').select('*, profiles!allocations_assigned_to_employee_id_fkey(name)').eq('asset_id', asset.id).order('allocation_date', { ascending: false }),
+          supabase.from('allocations').select('*, profiles!assigned_to_employee_id(name)').eq('asset_id', asset.id).order('allocation_date', { ascending: false }),
           supabase.from('maintenance_requests').select('*').eq('asset_id', asset.id).order('created_at', { ascending: false })
         ])
         if (allocs.error || maints.error) throw new Error('Query failed')
@@ -2836,15 +2844,15 @@ function LogsScreen({ activityLog = [], user, role, onMarkAllRead }) {
 
   useEffect(() => {
     async function fetchLogs() {
-      const isPlaceholder = user?.isMockAdmin || !process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('your-supabase-project')
+      const isPlaceholder = !process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('your-supabase-project')
       if (isPlaceholder) return
 
       setLoadingDb(true)
       try {
         const [allocRes, transferRes, bookingRes] = await Promise.all([
-          supabase.from('allocations').select('created_at, asset:assets(asset_tag, name), employee:profiles!allocations_assigned_to_employee_id_fkey(name)').order('created_at', { ascending: false }).limit(20),
-          supabase.from('transfer_requests').select('created_at, status, asset:assets(asset_tag, name), from_emp:profiles!transfer_requests_from_employee_id_fkey(name), to_emp:profiles!transfer_requests_to_employee_id_fkey(name)').eq('status', 'Approved').order('created_at', { ascending: false }).limit(20),
-          supabase.from('bookings').select('created_at, start_time, end_time, asset:assets(asset_tag, name), user:profiles(name)').in('status', ['Upcoming', 'Ongoing']).order('created_at', { ascending: false }).limit(20)
+          supabase.from('allocations').select('created_at, asset:assets!asset_id(asset_tag, name), employee:profiles!assigned_to_employee_id(name)').order('created_at', { ascending: false }).limit(20),
+          supabase.from('transfer_requests').select('created_at, status, asset:assets!asset_id(asset_tag, name), from_emp:profiles!from_employee_id(name), to_emp:profiles!to_employee_id(name)').eq('status', 'Approved').order('created_at', { ascending: false }).limit(20),
+          supabase.from('bookings').select('created_at, start_time, end_time, asset:assets!asset_id(asset_tag, name), user:profiles!booked_by(name)').in('status', ['Upcoming', 'Ongoing']).order('created_at', { ascending: false }).limit(20)
         ])
 
         let merged = []
@@ -3109,14 +3117,14 @@ function OrgScreen({ onDataChanged, isMockAdmin }) {
   const loadData = async () => {
     setLoading(true)
     try {
-      const isPlaceholder = isMockAdmin || !process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('your-supabase-project') || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY.includes('your-supabase')
+      const isPlaceholder = !process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('your-supabase-project') || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY.includes('your-supabase')
       if (isPlaceholder) {
         throw new Error('Supabase using placeholder credentials')
       }
 
       const [deptRes, profRes, catRes] = await Promise.all([
-        supabase.from('departments').select('*, head:profiles!head_id(id, name), profiles!profiles_department_id_fkey(count)').order('name'),
-        supabase.from('profiles').select('*, department:departments!profiles_department_id_fkey(name)').eq('status', 'Active').order('name'),
+        supabase.from('departments').select('*, head:profiles!head_id(id, name), profiles!department_id(count)').order('name'),
+        supabase.from('profiles').select('*, department:departments!department_id(name)').eq('status', 'Active').order('name'),
         supabase.from('asset_categories').select('*').order('name')
       ])
 
@@ -3850,13 +3858,29 @@ function DepartmentDialog({ open, onClose, onSave, profiles, departments, dept }
 }
 
 function App() {
+  const [mounted, setMounted] = useState(false)
+  const [currentUser, setCurrentUser] = useState(null)
   const [view, setView] = useState('auth') // 'auth' | 'app'
   const [authMode, setAuthMode] = useState('login')
-  const [currentUser, setCurrentUser] = useState(null)
   const [active, setActive] = useState('dashboard')
   const [role, setRole] = useState('employee')
   const [theme, setTheme] = useState('light')
   const [mobileOpen, setMobileOpen] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+    try {
+      const saved = localStorage.getItem('assetflow_session')
+      if (saved) {
+        const sessionUser = JSON.parse(saved)
+        setCurrentUser(sessionUser)
+        setRole(sessionUser.role || 'employee')
+        setView('app')
+      }
+    } catch (e) {
+      console.warn('Failed to restore session:', e)
+    }
+  }, [])
 
   const [assets, setAssets] = useState([])
   const [categories, setCategories] = useState([])
@@ -3893,24 +3917,146 @@ function App() {
   const loadGlobalData = async () => {
     setLoadingApp(true)
     try {
-      const isPlaceholder = currentUser?.isMockAdmin || !process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('your-supabase-project')
+      const isPlaceholder = !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+        process.env.NEXT_PUBLIC_SUPABASE_URL.includes('your-supabase-project')
       if (isPlaceholder) {
         throw new Error('Supabase using placeholder credentials')
       }
 
       const [assetsRes, catRes, allocRes, profRes, maintRes, transRes, deptRes, bookingsRes] = await Promise.all([
-        supabase.from('assets').select('*, category:asset_categories(name)').order('created_at', { ascending: false }),
+        supabase.from('assets').select('*, category:asset_categories!category_id(name)').order('created_at', { ascending: false }),
         supabase.from('asset_categories').select('*').order('name'),
-        supabase.from('allocations').select('*, employee:profiles!allocations_assigned_to_employee_id_fkey(name, department:departments!profiles_department_id_fkey(name))').eq('status', 'Active'),
-        supabase.from('profiles').select('*, department:departments!profiles_department_id_fkey(name)').eq('status', 'Active').order('name'),
-        supabase.from('maintenance_requests').select('*, asset:assets(name, asset_tag), profile:profiles(name)').order('created_at', { ascending: false }),
-        supabase.from('transfer_requests').select('*, from:profiles!transfer_requests_from_employee_id_fkey(name), to:profiles!transfer_requests_to_employee_id_fkey(name), asset:assets(name, asset_tag)').eq('status', 'Pending').order('created_at', { ascending: false }),
+        supabase.from('allocations').select('*, employee:profiles!assigned_to_employee_id(name, department:departments!department_id(name))').eq('status', 'Active'),
+        supabase.from('profiles').select('*, department:departments!department_id(name)').eq('status', 'Active').order('name'),
+        supabase.from('maintenance_requests').select('*, asset:assets!asset_id(name, asset_tag), profile:profiles!raised_by(name)').order('created_at', { ascending: false }),
+        supabase.from('transfer_requests').select('*, from:profiles!from_employee_id(name), to:profiles!to_employee_id(name), asset:assets!asset_id(name, asset_tag)').eq('status', 'Pending').order('created_at', { ascending: false }),
         supabase.from('departments').select('*').order('name'),
-        supabase.from('bookings').select('*, profile:profiles!bookings_booked_by_fkey(name), asset:assets!bookings_asset_id_fkey(asset_tag, name)')
+        supabase.from('bookings').select('*, profile:profiles!booked_by(name), asset:assets!asset_id(asset_tag, name)')
       ])
 
       if (assetsRes.error || catRes.error || allocRes.error || profRes.error || maintRes.error || transRes.error || deptRes.error || bookingsRes.error) {
         throw new Error('Supabase query error')
+      }
+
+      if (catRes.data && catRes.data.length === 0) {
+        console.log('Database is empty. Seeding mockup data to Supabase...')
+        
+        const categoryUUIDs = {
+          'Laptop':       'c1c1c1c1-c1c1-c1c1-c1c1-c1c1c1c1c1c1',
+          'Projector':    'c2c2c2c2-c2c2-c2c2-c2c2-c2c2c2c2c2c2',
+          'Vehicle':      'c3c3c3c3-c3c3-c3c3-c3c3-c3c3c3c3c3c3',
+          'Meeting Room': 'c4c4c4c4-c4c4-c4c4-c4c4-c4c4c4c4c4c4',
+          'Camera':       'c5c5c5c5-c5c5-c5c5-c5c5-c5c5c5c5c5c5',
+          'Monitor':      'c6c6c6c6-c6c6-c6c6-c6c6-c6c6c6c6c6c6',
+          'Tablet':       'c7c7c7c7-c7c7-c7c7-c7c7-c7c7c7c7c7c7'
+        }
+        const categoriesToInsert = Object.entries(categoryUUIDs).map(([name, id]) => ({ id, name }))
+        
+        const departmentUUIDs = {
+          'Engineering': 'd1d1d1d1-d1d1-d1d1-d1d1-d1d1d1d1d1d1',
+          'Design':      'd2d2d2d2-d2d2-d2d2-d2d2-d2d2d2d2d2d2',
+          'Marketing':   'd3d3d3d3-d3d3-d3d3-d3d3-d3d3d3d3d3d3',
+          'IT Ops':      'd4d4d4d4-d4d4-d4d4-d4d4-d4d4d4d4d4d4',
+          'Finance':     'd5d5d5d5-d5d5-d5d5-d5d5-d5d5d5d5d5d5',
+          'HR':          'd6d6d6d6-d6d6-d6d6-d6d6-d6d6d6d6d6d6'
+        }
+        const departmentsToInsert = Object.entries(departmentUUIDs).map(([name, id]) => ({ id, name }))
+        
+        const employeeUUIDs = {
+          'Priya Shah':    'e1e1e1e1-e1e1-e1e1-e1e1-e1e1e1e1e1e1',
+          'Rahul Iyer':   'e2e2e2e2-e2e2-e2e2-e2e2-e2e2-e2e2e2e2',
+          'Ananya Patel': 'e3e3e3e3-e3e3-e3e3-e3e3-e3e3-e3e3-e3e3',
+          'Vikram Singh': 'e4e4e4e4-e4e4-e4e4-e4e4-e4e4-e4e4-e4e4',
+          'Karthik Rao':  'e5e5e5e5-e5e5-e5e5-e5e5-e5e5-e5e5e5e5',
+          'Meera Nair':   'e6e6e6e6-e6e6-e6e6-e6e6-e6e6-e6e6e6e6',
+          'Arjun Mehta':  'e7e7e7e7-e7e7-e7e7-e7e7-e7e7-e7e7-e7e7',
+          'Sneha Kapoor': 'e8e8e8e8-e8e8-e8e8-e8e8-e8e8-e8e8-e8e8'
+        }
+        
+        const profilesToInsert = EMPLOYEES.map(emp => ({
+          id: employeeUUIDs[emp.name] || `e9e9e9e9-e9e9-e9e9-e9e9-${Math.random().toString(16).substring(2, 14).padEnd(12, '0')}`,
+          name: emp.name,
+          email: `${emp.name.toLowerCase().replace(' ', '')}@assetflow.io`,
+          role: emp.role === 'Admin' ? 'Admin' : emp.role === 'Manager' ? 'Manager' : 'Employee',
+          department_id: departmentUUIDs[emp.dept] || null,
+          status: 'Active'
+        }))
+        
+        const assetUUIDs = {}
+        SEED_ASSETS.forEach((a) => {
+          assetUUIDs[a.id] = `${a.id.padEnd(8, '0')}-${a.id.padEnd(4, '0')}-${a.id.padEnd(4, '0')}-${a.id.padEnd(4, '0')}-${a.id.padEnd(12, '0')}`
+        })
+        
+        const assetsToInsert = SEED_ASSETS.map(a => ({
+          id: assetUUIDs[a.id],
+          asset_tag: a.tag,
+          name: a.name,
+          category_id: categoryUUIDs[a.category],
+          status: a.status === 'allocated' ? 'Allocated' : a.status === 'maintenance' ? 'Under Maintenance' : 'Available',
+          location: a.location,
+          serial_number: a.serial,
+          condition: 'Good',
+          acquisition_date: a.since || new Date().toISOString().slice(0, 10),
+          acquisition_cost: 1500.00,
+          is_shared_bookable: a.category === 'Meeting Room'
+        }))
+        
+        await supabase.from('departments').insert(departmentsToInsert)
+        await supabase.from('asset_categories').insert(categoriesToInsert)
+        await supabase.from('profiles').insert(profilesToInsert)
+        await supabase.from('assets').insert(assetsToInsert)
+        
+        await supabase.from('departments').update({ head_id: employeeUUIDs['Rahul Iyer'] }).eq('id', departmentUUIDs['Engineering'])
+        await supabase.from('departments').update({ head_id: employeeUUIDs['Ananya Patel'] }).eq('id', departmentUUIDs['Design'])
+        await supabase.from('departments').update({ head_id: employeeUUIDs['Vikram Singh'] }).eq('id', departmentUUIDs['Marketing'])
+        await supabase.from('departments').update({ head_id: employeeUUIDs['Priya Shah'] }).eq('id', departmentUUIDs['IT Ops'])
+        
+        const allocationsToInsert = SEED_ASSETS.filter(a => a.status === 'allocated' && a.allocatedTo).map((a, idx) => ({
+          id: `b0a10ca0-de10-410a-ba10-00000000000${idx + 1}`,
+          asset_id: assetUUIDs[a.id],
+          assigned_to_employee_id: employeeUUIDs[a.allocatedTo] || null,
+          allocated_by: employeeUUIDs['Priya Shah'],
+          allocation_date: a.since || new Date().toISOString(),
+          status: 'Active'
+        }))
+        await supabase.from('allocations').insert(allocationsToInsert)
+        
+        const bookingsToInsert = SEED_BOOKINGS.map((b, idx) => {
+          const d = new Date()
+          d.setDate(d.getDate() + (b.day || 0))
+          d.setHours(b.start || 9, 0, 0, 0)
+          const startStr = d.toISOString()
+          d.setHours(b.end || 10, 0, 0, 0)
+          const endStr = d.toISOString()
+          const matchedAsset = SEED_ASSETS.find(sa => sa.tag === b.assetTag)
+          return {
+            id: `ba0ca0ba-a0ba-0000-0000-00000000000${idx + 1}`,
+            asset_id: matchedAsset ? assetUUIDs[matchedAsset.id] : null,
+            booked_by: employeeUUIDs[b.user] || employeeUUIDs['Priya Shah'],
+            start_time: startStr,
+            end_time: endStr,
+            status: 'Upcoming'
+          }
+        }).filter(b => b.asset_id)
+        await supabase.from('bookings').insert(bookingsToInsert)
+        
+        const maintToInsert = SEED_MAINTENANCE.map((m, idx) => {
+          const matchedAsset = SEED_ASSETS.find(sa => sa.tag === m.assetTag)
+          return {
+            id: `fa1ca0fa-a1ca-fa1c-a1ca-fa1ca1ca000${idx + 1}`,
+            asset_id: matchedAsset ? assetUUIDs[matchedAsset.id] : null,
+            raised_by: employeeUUIDs[m.raisedBy] || employeeUUIDs['Priya Shah'],
+            issue_description: m.issue,
+            priority: m.priority === 'high' ? 'High' : m.priority === 'low' ? 'Low' : 'Medium',
+            status: m.status === 'pending' ? 'Pending' : m.status === 'approved' ? 'Approved' : m.status === 'in_progress' ? 'In Progress' : m.status === 'resolved' ? 'Resolved' : 'Pending',
+            assigned_technician: m.tech || null,
+            created_at: m.date ? new Date(m.date).toISOString() : new Date().toISOString()
+          }
+        }).filter(m => m.asset_id)
+        await supabase.from('maintenance_requests').insert(maintToInsert)
+        
+        toast.success('Database was empty. Mockup data auto-seeded successfully!')
+        return loadGlobalData()
       }
 
       setCategories(catRes.data || [])
@@ -4079,7 +4225,8 @@ function App() {
 
   const handleAddBooking = async (assetId, startTime, endTime, title) => {
     try {
-      const isPlaceholder = currentUser?.isMockAdmin || !process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('your-supabase-project')
+      const isPlaceholder = !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+        process.env.NEXT_PUBLIC_SUPABASE_URL.includes('your-supabase-project')
       if (isPlaceholder) {
         throw new Error('Placeholder credentials')
       }
@@ -4089,7 +4236,7 @@ function App() {
         start_time: startTime.toISOString(),
         end_time: endTime.toISOString(),
         status: 'Upcoming'
-      }).select('*, profile:profiles!bookings_booked_by_fkey(name), asset:assets!bookings_asset_id_fkey(asset_tag, name)').single()
+      }).select('*, profile:profiles!booked_by(name), asset:assets!asset_id(asset_tag, name)').single()
 
       if (error) { toast.error(error.message); return }
       
@@ -4139,8 +4286,29 @@ function App() {
   const handleRegisterAsset = async (newAssetData) => {
     const { data, error } = await supabase.from('assets').insert([newAssetData]).select()
     if (error) {
-      toast.error('Failed to register: ' + error.message)
-      return false
+      // Show error but also add to local state so user can see their entry this session
+      toast.error('Supabase error: ' + error.message + ' — showing locally only.')
+      const catName = categories.find(c => c.id === newAssetData.category_id)?.name || 'Unknown'
+      const localAsset = {
+        id: 'local-' + Date.now(),
+        tag: newAssetData.asset_tag,
+        asset_tag: newAssetData.asset_tag,
+        name: newAssetData.name,
+        category: catName,
+        serial: newAssetData.serial_number,
+        serial_number: newAssetData.serial_number,
+        location: newAssetData.location,
+        status: newAssetData.status || 'Available',
+        condition: newAssetData.condition,
+        acquisitionDate: newAssetData.acquisition_date,
+        acquisitionCost: newAssetData.acquisition_cost,
+        allocatedTo: null,
+        dept: null,
+        is_shared_bookable: newAssetData.is_shared_bookable
+      }
+      setAssets(prev => [localAsset, ...prev])
+      setRegisterOpen(false)
+      return true
     }
     toast.success(`Registered ${newAssetData.asset_tag} successfully`)
     loadGlobalData()
@@ -4282,43 +4450,88 @@ function App() {
   }
 
   const handleLogin = async (authUser) => {
+    // isMockAdmin = admin demo login (admin@assetflow.io / admin123)
     if (authUser.isMockAdmin) {
-      setCurrentUser(authUser)
+      const sessionUser = { ...authUser, role: 'admin' }
+      try { localStorage.setItem('assetflow_session', JSON.stringify(sessionUser)) } catch {}
+      setCurrentUser(sessionUser)
       setRole('admin')
       setActive('dashboard')
       setView('app')
+      // Load fresh data from Supabase after login
+      await loadGlobalData()
       return
     }
 
-    let { data: profile } = await supabase.from('profiles').select('*, department:departments!profiles_department_id_fkey(name)').eq('email', authUser.email).maybeSingle()
-    
-    if (!profile) {
-      const name = authUser.user_metadata?.full_name || authUser.email.split('@')[0]
-      const { data: newProfile, error } = await supabase.from('profiles').insert({
-        id: authUser.id,
-        email: authUser.email,
-        name: name,
-        role: 'Employee'
-      }).select('*, department:departments!profiles_department_id_fkey(name)').single()
-      
-      if (error) {
-        toast.error('Failed to setup profile: ' + error.message)
-        return
+    // isMockEmployee = any other email/password login (no Supabase Auth, no profile insert)
+    if (authUser.isMockEmployee) {
+      const sessionUser = { ...authUser, role: 'employee' }
+      // Try to find matching profile in Supabase to get real role/name
+      try {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*, department:departments!department_id(name)')
+          .eq('email', authUser.email)
+          .maybeSingle()
+        if (profile) {
+          const profileRole = (profile.role || 'employee').toLowerCase()
+          Object.assign(sessionUser, { ...profile, role: profileRole })
+        }
+      } catch (e) {
+        console.warn('Profile lookup failed, using local role:', e.message)
       }
-      profile = newProfile
+      try { localStorage.setItem('assetflow_session', JSON.stringify(sessionUser)) } catch {}
+      setCurrentUser(sessionUser)
+      setRole(sessionUser.role)
+      const firstAllowed = NAV_ITEMS.find((n) => n.roles?.includes(sessionUser.role))?.key || 'dashboard'
+      setActive(firstAllowed)
+      setView('app')
+      await loadGlobalData()
+      return
     }
 
-    const role = profile.role.toLowerCase()
-    
-    setCurrentUser({ ...profile, role })
-    setRole(role)
-    const firstAllowed = NAV_ITEMS.find((n) => n.roles?.includes(role))?.key || 'dashboard'
-    setActive(firstAllowed)
-    setView('app')
+    // Real Supabase Auth flow (future use)
+    try {
+      let { data: profile } = await supabase
+        .from('profiles')
+        .select('*, department:departments!department_id(name)')
+        .eq('email', authUser.email)
+        .maybeSingle()
+
+      if (!profile) {
+        // Only insert if we have a valid Supabase Auth UUID
+        if (!authUser.id) {
+          toast.error('Authentication error: no user ID. Please use the login form.')
+          return
+        }
+        const name = authUser.user_metadata?.full_name || authUser.email.split('@')[0]
+        const { data: newProfile, error } = await supabase.from('profiles').insert({
+          id: authUser.id,
+          email: authUser.email,
+          name: name,
+          role: 'Employee'
+        }).select('*, department:departments!department_id(name)').single()
+        if (error) { toast.error('Failed to setup profile: ' + error.message); return }
+        profile = newProfile
+      }
+
+      const userRole = (profile.role || 'employee').toLowerCase()
+      const sessionUser = { ...profile, role: userRole }
+      try { localStorage.setItem('assetflow_session', JSON.stringify(sessionUser)) } catch {}
+      setCurrentUser(sessionUser)
+      setRole(userRole)
+      const firstAllowed = NAV_ITEMS.find((n) => n.roles?.includes(userRole))?.key || 'dashboard'
+      setActive(firstAllowed)
+      setView('app')
+      await loadGlobalData()
+    } catch (err) {
+      toast.error('Login error: ' + err.message)
+    }
   }
 
   const handleLogout = async () => {
-    await supabase.auth.signOut()
+    try { await supabase.auth.signOut() } catch {}
+    try { localStorage.removeItem('assetflow_session') } catch {}
     setCurrentUser(null)
     setRole('employee')
     setView('auth')
@@ -4326,6 +4539,19 @@ function App() {
   }
 
   const activeLabel = NAV_ITEMS.find((n) => n.key === active)?.label ?? 'Dashboard'
+
+  if (!mounted) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-sky-600 flex items-center justify-center animate-spin">
+            <Boxes className="w-5 h-5 text-white" />
+          </div>
+          <span className="text-sm text-muted-foreground animate-pulse">Loading AssetFlow...</span>
+        </div>
+      </div>
+    )
+  }
 
   if (view === 'auth') return <AuthScreen defaultMode={authMode} onLogin={handleLogin} />
 
@@ -4368,8 +4594,8 @@ function App() {
                 {active === 'maintenance' && <MaintenanceScreen tickets={role === 'employee' && currentUser ? tickets.filter(t => t.raisedById === currentUser.id) : tickets} onMoveTicket={onMoveTicket} onRaise={() => setMaintOpen(true)} role={role} />}
                 {active === 'audit' && <AuditScreen assets={assets} departments={departments} profiles={profiles} addLog={addLog} currentUser={currentUser} setAssets={setAssets} />}
                 {active === 'reports' && <ReportsScreen assets={assets} bookings={bookings} tickets={tickets} />}
-                {active === 'logs' && <LogsScreen currentUser={currentUser} role={role} />}
-                {active === 'org' && <OrgScreen onDataChanged={loadGlobalData} isMockAdmin={currentUser?.isMockAdmin} />}
+                {active === 'logs' && <LogsScreen activityLog={activityLog} user={currentUser} currentUser={currentUser} role={role} />}
+                {active === 'org' && <OrgScreen onDataChanged={loadGlobalData} isMockAdmin={false} />}
               </motion.div>
             </AnimatePresence>
           </main>
